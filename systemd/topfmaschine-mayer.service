@@ -1,0 +1,21 @@
+[Unit]
+Description=Topfmaschine Mayer Erfassung (DOMINIK)
+After=network.target
+
+[Service]
+Type=simple
+User=produktion
+Group=produktion
+WorkingDirectory=/opt/topfmaschine_mayer
+EnvironmentFile=/etc/topfmaschine_mayer.env
+ExecStart=/opt/topfmaschine_mayer/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8084 --workers 1
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=topfmaschine-mayer
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

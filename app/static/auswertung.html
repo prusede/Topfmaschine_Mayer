@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Topfmaschine Mayer – Auswertung</title>
+<style>
+:root{
+  /* gleiche Farbwahl wie index.html - bewusst anders als Stolze (gruen) */
+  --leaf:#1f6f8a;--leaf-dark:#123c4d;--leaf-light:#e2eef1;
+  --paper:#f7f5ef;--paper-line:#e3ded2;--ink:#21251f;--ink-soft:#5c6157;
+  --amber:#c9821f;--amber-soft:#f5e7cf;--amber-dark:#7a4d0c;
+  --danger:#a8341f;--danger-soft:#f3ddd6;
+  --radius:10px;--shadow:0 1px 3px rgba(33,37,31,.12),0 4px 14px rgba(33,37,31,.06);
+}
+*{box-sizing:border-box;}
+body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--paper);color:var(--ink);font-size:16px;line-height:1.4;margin:0;padding:0;}
+header{background:var(--leaf-dark);color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.brand{font-size:1.2rem;font-weight:800;letter-spacing:.07em;}
+.title{font-size:1rem;font-weight:500;opacity:.9;}
+.spacer{flex:1;}
+a.back{color:#9fe0a4;text-decoration:none;font-size:.9rem;font-weight:600;}
+a.back:hover{text-decoration:underline;}
+main{padding:20px;max-width:1100px;margin:0 auto;}
+h2{font-size:1.1rem;font-weight:700;color:var(--leaf-dark);margin:24px 0 10px;}
+h2:first-child{margin-top:0;}
+
+/* Filter-Leiste */
+.filter-bar{background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:16px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
+.filter-bar label{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);display:block;margin-bottom:4px;}
+.filter-bar input,.filter-bar select{padding:8px 10px;border:1.5px solid var(--paper-line);border-radius:7px;font-size:.9rem;font-family:inherit;background:var(--paper);color:var(--ink);}
+.filter-bar input:focus,.filter-bar select:focus{outline:none;border-color:var(--leaf);}
+.btn-load{background:var(--leaf);color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:.9rem;font-weight:700;cursor:pointer;}
+.btn-load:active{background:var(--leaf-dark);}
+.btn-export{background:#fff;border:1.5px solid var(--paper-line);color:var(--ink-soft);border-radius:8px;padding:9px 14px;font-size:.85rem;font-weight:600;cursor:pointer;}
+
+/* KPI-Kacheln */
+.kpi-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+.kpi{background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 18px;flex:1;min-width:130px;}
+.kpi-val{font-size:2rem;font-weight:800;color:var(--leaf-dark);font-variant-numeric:tabular-nums;}
+.kpi-lab{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);margin-top:2px;}
+
+/* Tabellen */
+.tbl-wrap{overflow-x:auto;margin-bottom:24px;}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
+th{background:var(--leaf-dark);color:#fff;padding:9px 13px;font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;text-align:left;white-space:nowrap;}
+td{padding:9px 13px;font-size:.9rem;border-bottom:1px solid var(--paper-line);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--leaf-light);}
+tr.missing td{background:#fde8ef;}
+.pill{border-radius:999px;padding:3px 10px;font-size:.75rem;font-weight:700;display:inline-block;}
+.pill-offen{background:#e6f4ea;color:var(--leaf-dark);}
+.pill-geschl{background:var(--amber-soft);color:var(--amber-dark);}
+.num{font-variant-numeric:tabular-nums;text-align:right;}
+.no-data{text-align:center;padding:36px;color:var(--ink-soft);font-size:.95rem;}
+
+/* Leistungs-Bar */
+.perf-bar-bg{background:var(--paper-line);border-radius:4px;height:7px;min-width:80px;overflow:hidden;}
+.perf-bar-fg{height:100%;background:var(--leaf);border-radius:4px;}
+
+/* Kultur-Aggregation */
+.kul-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--paper-line);}
+.kul-row:last-child{border-bottom:none;}
+.kul-name{flex:1;font-size:.9rem;}
+.kul-stueck{font-weight:700;font-variant-numeric:tabular-nums;min-width:60px;text-align:right;}
+.kul-mah{color:var(--ink-soft);font-size:.85rem;min-width:80px;text-align:right;}
+.kul-perf{font-size:.85rem;font-variant-numeric:tabular-nums;min-width:80px;text-align:right;color:var(--leaf-dark);font-weight:600;}
+
+/* Auth */
+.auth-overlay{position:fixed;inset:0;background:rgba(33,37,31,.6);display:flex;align-items:center;justify-content:center;z-index:100;}
+.auth-box{background:#fff;border-radius:14px;padding:28px 24px;width:100%;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.25);}
+.auth-box h3{margin:0 0 16px;font-size:1.05rem;}
+.auth-box input{width:100%;padding:10px;border:1.5px solid var(--paper-line);border-radius:8px;font-size:1rem;font-family:inherit;margin-bottom:12px;}
+.auth-box input:focus{outline:none;border-color:var(--leaf);}
+.auth-err{color:var(--danger);font-size:.85rem;margin-bottom:8px;display:none;}
+.auth-btn{width:100%;background:var(--leaf);color:#fff;border:none;border-radius:8px;padding:11px;font-size:1rem;font-weight:700;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<!-- Auth-Overlay -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-box">
+    <h3>🔐 Auswertung – Zugang</h3>
+    <input type="password" id="authInput" placeholder="Auswertungs-Passwort" />
+    <div class="auth-err" id="authErr">Falsches Passwort</div>
+    <button class="auth-btn" id="authBtn">Weiter</button>
+  </div>
+</div>
+
+<header>
+  <div class="brand">DOMINIK</div>
+  <div class="title">Topfmaschine Mayer – Auswertung</div>
+  <span class="spacer"></span>
+  <a class="back" href="http://10.10.0.210:8083/auswertung" style="margin-right:14px">⇄ Stolze-Auswertung</a>
+  <a class="back" href="/">← zur Erfassung</a>
+</header>
+
+<main>
+  <!-- Filter -->
+  <div class="filter-bar">
+    <div>
+      <label>Von</label>
+      <input type="date" id="fVon" />
+    </div>
+    <div>
+      <label>Bis</label>
+      <input type="date" id="fBis" />
+    </div>
+    <div>
+      <label>Schnellwahl</label>
+      <select id="fRange">
+        <option value="">—</option>
+        <option value="today">Heute</option>
+        <option value="week">Diese Woche</option>
+        <option value="month">Dieser Monat</option>
+      </select>
+    </div>
+    <div>
+      <label>Kultur</label>
+      <select id="fKultur"><option value="">Alle</option></select>
+    </div>
+    <button class="btn-load" id="btnLoad">Laden</button>
+    <button class="btn-export" id="btnExport">⭳ CSV</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-row" id="kpiRow">
+    <div class="kpi"><div class="kpi-val" id="kpiAuftraege">—</div><div class="kpi-lab">Aufträge</div></div>
+    <div class="kpi"><div class="kpi-val" id="kpiStueck">—</div><div class="kpi-lab">Gesamtstück</div></div>
+    <div class="kpi"><div class="kpi-val" id="kpiMah">—</div><div class="kpi-lab">MA-Stunden</div></div>
+    <div class="kpi"><div class="kpi-val" id="kpiLeistung">—</div><div class="kpi-lab">Stück / MA-Std.</div></div>
+  </div>
+
+  <!-- Aufträge-Tabelle -->
+  <h2>Aufträge</h2>
+  <div class="tbl-wrap">
+    <table id="auftraegeTbl">
+      <thead>
+        <tr>
+          <th>Nr.</th>
+          <th>Datum</th>
+          <th>Kultur</th>
+          <th>Arbeit</th>
+          <th>Topf</th>
+          <th>Start</th>
+          <th>Ende</th>
+          <th class="num">MA</th>
+          <th class="num">MA-Std.</th>
+          <th class="num">Stück</th>
+          <th class="num">Stück/MAh</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="auftraegeBody">
+        <tr><td colspan="12" class="no-data">Daten laden …</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Kultur-Aggregation -->
+  <h2>Leistung nach Kultur</h2>
+  <div style="background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:24px;">
+    <div id="kulturAgg" style="min-height:40px">
+      <div class="no-data" id="kulturAggEmpty">Nach dem Laden erscheinen hier die aggregierten Kulturleistungen.</div>
+    </div>
+  </div>
+
+  <!-- Tages-Aggregation -->
+  <h2>Tagesverlauf</h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Datum</th><th class="num">Aufträge</th><th class="num">Stück</th><th class="num">MA-Std.</th><th class="num">Stück/MAh</th></tr></thead>
+      <tbody id="tagesBody"><tr><td colspan="5" class="no-data">–</td></tr></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+"use strict";
+const pad = n => String(n).padStart(2,"0");
+function isoToday(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function displayDate(iso){ if(!iso) return ""; const [y,m,d]=iso.split("-"); return `${d}.${m}.${y}`; }
+function fmtNum(n, dec=1){ if(n===null||n===undefined||isNaN(n)) return "—"; return n.toLocaleString("de-DE",{maximumFractionDigits:dec,minimumFractionDigits:dec}); }
+function esc(s){ const t=document.createElement("div"); t.textContent=(s==null||s===undefined)?"":String(s); return t.innerHTML; }
+function $(id){ return document.getElementById(id); }
+
+// Fetch mit Timeout: verhindert, dass die Auswertungsseite bei einer
+// haengenden WLAN-Verbindung unbegrenzt wartet (gleiche Ursache wie der
+// Sync-Deadlock in sync.js, siehe dortigen _fetchTimeout).
+function _fetchTimeout(url, opts, timeoutMs){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), timeoutMs || 12000);
+  return fetch(url, Object.assign({}, opts, {signal: ctrl.signal})).finally(()=>clearTimeout(t));
+}
+
+let _pw = "", _kulturen = [];
+
+/* ── Auth ──────────────────────────────────────────────────────── */
+async function doAuth(){
+  const pw = $("authInput").value;
+  try {
+    const r = await _fetchTimeout("/api/auswertung/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pw})});
+    const data = await r.json();
+    if(data.ok){ _pw = pw; $("authOverlay").style.display="none"; init(); }
+    else{ $("authErr").style.display="block"; }
+  } catch(e){ $("authErr").textContent="Verbindungsfehler"; $("authErr").style.display="block"; }
+}
+$("authBtn").onclick = doAuth;
+$("authInput").addEventListener("keydown", ev => { if(ev.key==="Enter") doAuth(); });
+setTimeout(() => $("authInput").focus(), 100);
+
+/* ── Init ──────────────────────────────────────────────────────── */
+async function init(){
+  // Konfiguration laden
+  try {
+    const cfg = await _fetchTimeout("/api/config").then(r=>r.json());
+    _kulturen = cfg.kulturen || [];
+    const sel = $("fKultur");
+    _kulturen.forEach((name,i) => { const o=document.createElement("option"); o.value=i+1; o.textContent=name; sel.appendChild(o); });
+    const oF=document.createElement("option"); oF.value="23"; oF.textContent="Freitext"; sel.appendChild(oF);
+  } catch(e){}
+
+  // Datum-Defaults
+  $("fVon").value = isoToday();
+  $("fBis").value = isoToday();
+  await loadData();
+}
+
+/* Schnellwahl */
+$("fRange").addEventListener("change", () => {
+  const v = $("fRange").value; if(!v) return;
+  const today = new Date();
+  const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  if(v==="today"){ $("fVon").value=$("fBis").value=iso(today); }
+  else if(v==="week"){
+    const mon=new Date(today); mon.setDate(today.getDate()-today.getDay()+1);
+    $("fVon").value=iso(mon); $("fBis").value=iso(today);
+  } else if(v==="month"){
+    const m1=new Date(today.getFullYear(),today.getMonth(),1);
+    $("fVon").value=iso(m1); $("fBis").value=iso(today);
+  }
+});
+
+$("btnLoad").onclick = loadData;
+
+async function loadData(){
+  const von=$("fVon").value, bis=$("fBis").value;
+  if(!von||!bis){ return; }
+  try {
+    const [summaries, byKultur] = await Promise.all([
+      _fetchTimeout("/api/auswertung/summary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pw:_pw,von,bis})}).then(r=>r.json()),
+      _fetchTimeout("/api/auswertung/kulturen",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pw:_pw,von,bis})}).then(r=>r.json()),
+    ]);
+    renderKPIs(summaries);
+    renderAuftraege(summaries);
+    renderKulturAgg(byKultur);
+    renderTage(summaries);
+  } catch(e){ console.error(e); }
+}
+
+function nettoH(start,ende,pause){
+  if(!start||!ende) return 0;
+  const toMin=t=>{const[h,m]=t.split(":").map(Number);return h*60+m;};
+  let m=toMin(ende)-toMin(start); if(m<0)m+=1440;
+  m-=(pause||0)*60; return Math.max(0,m/60);
+}
+
+function renderKPIs(rows){
+  const auftraege=rows.length;
+  const totalStueck=rows.reduce((s,r)=>s+(r.gesamtstueck||0),0);
+  const totalMah=rows.reduce((s,r)=>s+(r.total_mh||0),0);
+  const leistung=totalMah>0?totalStueck/totalMah:null;
+  $("kpiAuftraege").textContent=auftraege;
+  $("kpiStueck").textContent=totalStueck.toLocaleString("de-DE");
+  $("kpiMah").textContent=fmtNum(totalMah);
+  $("kpiLeistung").textContent=fmtNum(leistung,0);
+}
+
+function kulturName(value){ return value || "—"; }
+
+function renderAuftraege(rows){
+  const tbody=$("auftraegeBody"); tbody.innerHTML="";
+  if(!rows.length){ tbody.innerHTML=`<tr><td colspan="12" class="no-data">Keine Aufträge im Zeitraum</td></tr>`; return; }
+  // Filter nach Kultur
+  const kf=$("fKultur").value;
+  const kText=kf ? $("fKultur").selectedOptions[0].textContent : "";
+  const filtered=kf?rows.filter(r=>String(r.kultur||"")===kText):rows;
+  if(!filtered.length){ tbody.innerHTML=`<tr><td colspan="12" class="no-data">Keine Treffer für gewählte Kultur</td></tr>`; return; }
+  filtered.forEach(r => {
+    const tr=document.createElement("tr");
+    if(r.has_missing_data) tr.className = "missing";
+    if(r.missing_fields && r.missing_fields.length) tr.title = "Fehlende Angaben: " + r.missing_fields.join(", ");
+    const leistung=r.total_mh>0&&r.gesamtstueck?r.gesamtstueck/r.total_mh:null;
+    tr.innerHTML=`
+      <td style="font-weight:700;font-size:.85rem">${esc(r.auftragsnr)||"—"}</td>
+      <td style="font-size:.85rem">${displayDate(r.datum)}</td>
+      <td>${esc(kulturName(r.kultur))}</td>
+      <td style="font-size:.85rem">${esc(r.arbeit)||"—"}</td>
+      <td style="font-size:.85rem">${esc(r.topfgroesse)||"—"}</td>
+      <td class="num">${esc(r.auftrag_start)||"—"}</td>
+      <td class="num">${esc(r.auftrag_ende)||"lfd."}</td>
+      <td class="num">${r.anzahl_ma||0}</td>
+      <td class="num">${fmtNum(r.total_mh)}</td>
+      <td class="num">${r.gesamtstueck!==null&&r.gesamtstueck!==undefined?r.gesamtstueck.toLocaleString("de-DE"):"—"}</td>
+      <td class="num">${fmtNum(leistung,0)}</td>
+      <td><span class="pill ${r.status==="abgeschlossen"?"pill-geschl":"pill-offen"}">${esc(r.status)}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderKulturAgg(byKultur){
+  const c=$("kulturAgg"); c.innerHTML="";
+  const rows=Array.isArray(byKultur)?byKultur:[];
+  if(!rows.length){ c.innerHTML=`<div class="no-data">Keine Daten</div>`; return; }
+  const sorted=[...rows].sort((a,b)=>(b.stueck||0)-(a.stueck||0));
+  const maxStueck=Math.max(...sorted.map(d=>d.stueck||0),1);
+  sorted.forEach(d => {
+    const row=document.createElement("div"); row.className="kul-row";
+    row.innerHTML=`
+      <div class="kul-name">${esc(d.kultur)||"—"}</div>
+      <div style="flex:2;min-width:80px"><div class="perf-bar-bg"><div class="perf-bar-fg" style="width:${Math.round((d.stueck||0)/maxStueck*100)}%"></div></div></div>
+      <div class="kul-stueck">${(d.stueck||0).toLocaleString("de-DE")} Stk</div>
+      <div class="kul-mah">${fmtNum(d.mh)} MAh</div>
+      <div class="kul-perf">${fmtNum(d.stueck_pro_mah,0)} St/h</div>
+    `;
+    c.appendChild(row);
+  });
+}
+
+function renderTage(rows){
+  const byDate={};
+  rows.forEach(r => {
+    const d=r.datum||""; if(!d) return;
+    if(!byDate[d]) byDate[d]={stueck:0,mah:0,auftraege:0};
+    byDate[d].auftraege++;
+    byDate[d].stueck+=(r.gesamtstueck||0);
+    byDate[d].mah+=(r.total_mh||0);
+  });
+  const tbody=$("tagesBody"); tbody.innerHTML="";
+  const dates=Object.keys(byDate).sort().reverse();
+  if(!dates.length){ tbody.innerHTML=`<tr><td colspan="5" class="no-data">Keine Daten</td></tr>`; return; }
+  dates.forEach(d => {
+    const v=byDate[d];
+    const leistung=v.mah>0&&v.stueck?v.stueck/v.mah:null;
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${displayDate(d)}</td><td class="num">${v.auftraege}</td><td class="num">${v.stueck.toLocaleString("de-DE")}</td><td class="num">${fmtNum(v.mah)}</td><td class="num">${fmtNum(leistung,0)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+/* CSV-Export */
+$("btnExport").onclick = async () => {
+  const von=$("fVon").value, bis=$("fBis").value;
+  try {
+    const r=await _fetchTimeout("/api/export.csv",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pw:_pw,von,bis})},30000);
+    if(!r.ok){alert("Export fehlgeschlagen");return;}
+    const blob=await r.blob();
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download=`Topfmaschine_Mayer_${von}_${bis}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch(e){ alert("Fehler beim Export"); }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+Topfmaschine Mayer – Installationsanleitung
+============================================
+Port Backend:  8084 (HTTP)
+Port HTTPS:    8447 (Caddy)
+URL lokal:     http://10.10.0.210:8084
+URL HTTPS:     https://10.10.0.210:8447
+
+Eigenständige Instanz analog zu Topfmaschine_Stolze (eigener Port, eigener
+Dienst, eigene Datenbank) - läuft technisch komplett unabhängig davon.
+Im Unterschied zu Stolze OHNE Modbus/LOGO!-Zähleranbindung: Mayer hat keinen
+Modbus-Zähler, "Produzierte Menge" wird ausschließlich manuell erfasst. Es
+gibt daher keinen logo-poller-Dienst und kein TM_LOGO_*-Environment.
+
+1. Verzeichnis und User anlegen
+   sudo mkdir -p /opt/topfmaschine_mayer/data /opt/topfmaschine_mayer/backups
+   sudo chown -R produktion:produktion /opt/topfmaschine_mayer
+
+2. App-Dateien kopieren
+   sudo cp -r Topfmaschine_Mayer/* /opt/topfmaschine_mayer/
+
+3. Python-Venv einrichten
+   cd /opt/topfmaschine_mayer
+   python3 -m venv venv
+   venv/bin/pip install -r requirements.txt
+
+4. Environment-Datei anlegen
+   sudo nano /etc/topfmaschine_mayer.env
+   Inhalt (TM_ADMIN_PW/TM_VIEWER_PW: identische Werte wie in
+   /etc/topfmaschine.env von Stolze - so vereinbart, damit beide Apps mit
+   denselben Admin-/Auswertungs-Passwörtern erreichbar sind):
+     TM_ADMIN_PW=<gleicher Wert wie Stolze>
+     TM_VIEWER_PW=<gleicher Wert wie Stolze>
+     TM_DB_PATH=/opt/topfmaschine_mayer/data/topfmaschine_mayer.db
+
+   sudo chmod 600 /etc/topfmaschine_mayer.env
+
+5. systemd-Service installieren (kein LOGO!-Poller nötig)
+   sudo cp /opt/topfmaschine_mayer/systemd/topfmaschine-mayer.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable topfmaschine-mayer
+   sudo systemctl start topfmaschine-mayer
+   sudo systemctl status topfmaschine-mayer
+
+6. Caddy konfigurieren
+   Den Block aus caddy/Caddyfile in /etc/caddy/Caddyfile einfügen
+   (NICHT die Halle-1- (8443/8444) oder Stolze-Einträge (8446) ändern!)
+   sudo systemctl reload caddy
+
+7. Backup-Cron einrichten (optional)
+   sudo crontab -e
+   Zeile hinzufügen:
+   0 */2 * * * /opt/topfmaschine_mayer/scripts/backup_db.sh >> /var/log/topfmaschine_mayer_backup.log 2>&1
+
+8. Logs prüfen
+   sudo journalctl -u topfmaschine-mayer -f
+
+9. Tablet-Lesezeichen
+   Zwei Lesezeichen auf demselben Tablet anlegen:
+     Stolze: https://10.10.0.210:8446
+     Mayer:  https://10.10.0.210:8447
+   Beide Erfassungsseiten haben zusätzlich einen Link-Button im Header
+   ("⇄ Stolze" bzw. "⇄ Mayer") zum direkten Wechseln.
+
+ACHTUNG: Die Halle-1-App (Port 8080/8443) und Topfmaschine_Stolze
+(Port 8083/8446) sind von dieser Installation komplett unabhängig.

@@ -1,0 +1,2249 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Topfmaschine Mayer – DOMINIK</title>
+<style>
+:root {
+  /* Bewusst andere Grundfarbe als Topfmaschine_Stolze (dort gruen) - hier
+     Petrol/Blau, damit auf dem gemeinsam genutzten Tablet auf den ersten
+     Blick erkennbar ist, welche Maschine gerade erfasst wird. */
+  --leaf:#1f6f8a; --leaf-dark:#123c4d; --leaf-light:#e2eef1;
+  --paper:#f7f5ef; --paper-line:#e3ded2; --ink:#21251f; --ink-soft:#5c6157;
+  --amber:#c9821f; --amber-soft:#f5e7cf; --amber-dark:#7a4d0c;
+  --danger:#a8341f; --danger-soft:#f3ddd6;
+  --aufsicht:#6b2fa0; --aufsicht-soft:#ede0f8;
+  --radius:10px; --shadow:0 1px 3px rgba(33,37,31,.12),0 4px 14px rgba(33,37,31,.06);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--paper);color:var(--ink);font-size:16px;line-height:1.4;}
+
+/* Header */
+header{background:var(--leaf-dark);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50;box-shadow:var(--shadow);flex-wrap:wrap;}
+.brand{font-size:1.3rem;font-weight:800;letter-spacing:.07em;color:#fff;line-height:1;}
+.title{font-size:1.05rem;font-weight:500;opacity:.95;}
+.spacer{flex:1;}
+.session-field{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:8px;padding:6px 10px;font-size:.85rem;min-width:130px;}
+.session-field::placeholder{color:#bcd3bc;}
+.admin-badge{display:none;background:#f5e7cf;color:#7a4d0c;border-radius:6px;padding:4px 10px;font-size:.78rem;font-weight:700;white-space:nowrap;}
+.admin-badge.show{display:inline-flex;align-items:center;gap:5px;}
+#syncBadge{font-size:.8rem;color:#9fe0a4;white-space:nowrap;}
+
+/* Main */
+main{padding:16px;max-width:1100px;margin:0 auto;}
+
+/* Sperr-Banner */
+.lock-banner{background:var(--amber-soft);border:1.5px solid var(--amber);border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;font-size:.92rem;color:var(--amber-dark);font-weight:600;display:none;}
+.lock-banner.show{display:block;}
+/* Tag-Abgeschlossen-Banner */
+.day-closed-banner{background:var(--danger);color:#fff;border-radius:0;padding:10px 18px;font-size:.95rem;font-weight:700;display:none;text-align:center;}
+.day-closed-banner.show{display:block;}
+
+/* Stat-Kacheln */
+.stat-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.stat-card{flex:1;min-width:120px;background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;}
+.stat-val{font-size:2rem;font-weight:800;color:var(--leaf-dark);font-variant-numeric:tabular-nums;line-height:1.1;}
+.stat-val.amber{color:var(--amber-dark);}
+.stat-lab{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);margin-top:4px;}
+
+/* Auftragsliste */
+.auftrag-tabs{display:flex;gap:8px;overflow-x:auto;margin:0 0 14px;padding:2px 0 6px;}
+.auftrag-tab{border:1px solid var(--paper-line);background:#fff;border-radius:8px;padding:9px 12px;min-width:180px;text-align:left;box-shadow:var(--shadow);cursor:pointer;display:flex;flex-direction:column;gap:3px;}
+.auftrag-tab.active{border-color:var(--leaf);box-shadow:inset 4px 0 0 var(--leaf),var(--shadow);}
+.auftrag-tab.missing{background:#fde8ef;border-color:var(--danger);}
+.auftrag-tab .nr{font-weight:800;font-size:.9rem;color:var(--leaf-dark);}
+.auftrag-tab .meta{font-size:.78rem;color:var(--ink-soft);white-space:nowrap;}
+.auftrag-tab .status{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.3px;}
+
+/* Kein-Auftrag-Banner */
+.no-auftrag{background:#fff;border:2px dashed var(--paper-line);border-radius:var(--radius);padding:28px 24px;text-align:center;margin-bottom:14px;}
+.no-auftrag .big{font-size:2.4rem;margin-bottom:8px;}
+.no-auftrag .hint{color:var(--ink-soft);font-size:.92rem;margin-top:6px;}
+
+/* Auftrags-Panel */
+.auftrag-panel{background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden;}
+.auftrag-panel.incomplete{background:#fde8ef;border-color:var(--danger);box-shadow:inset 4px 0 0 var(--danger),var(--shadow);} 
+.auftrag-head{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--leaf-dark);color:#fff;flex-wrap:wrap;}
+.auftrag-nr{font-size:1rem;font-weight:800;letter-spacing:.05em;}
+.auftrag-datum{font-size:.85rem;opacity:.8;}
+.status-badge{border-radius:999px;padding:3px 11px;font-size:.78rem;font-weight:700;letter-spacing:.3px;}
+.status-offen{background:#4caf50;color:#fff;}
+.status-abgeschlossen{background:#c9821f;color:#fff;}
+.auftrag-zeiten{font-size:.88rem;opacity:.85;margin-left:auto;}
+
+.auftrag-body{padding:14px 16px;display:flex;flex-direction:column;gap:14px;}
+.cfg-row{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;}
+.cfg-grp{min-width:140px;}
+.cfg-grp .lab{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);margin-bottom:6px;}
+
+/* Chips */
+.chips{display:flex;flex-wrap:wrap;gap:6px;}
+.chip{border:1.5px solid var(--paper-line);background:#fff;border-radius:999px;padding:7px 14px;font-size:.88rem;cursor:pointer;user-select:none;transition:all .12s;}
+.chip:hover{border-color:var(--leaf);background:var(--leaf-light);}
+.chip.on{background:var(--leaf-light);border-color:var(--leaf);color:var(--leaf-dark);font-weight:600;}
+.chip.topf.on{background:var(--amber-soft);border-color:var(--amber);color:var(--amber-dark);}
+.chip.arb.on{background:#e0ecff;border-color:#3b7fd4;color:#1a4a8a;}
+.chip .kul-num{font-size:.7rem;font-weight:700;background:var(--paper-line);color:var(--ink-soft);border-radius:4px;padding:1px 5px;margin-right:4px;display:inline-block;transition:background .12s,color .12s;}
+.chip.on .kul-num{background:var(--leaf-dark);color:#fff;}
+.freitext-kul{border:1px solid var(--paper-line);border-radius:7px;padding:7px 10px;font-size:.9rem;background:var(--paper);display:none;margin-top:6px;width:100%;max-width:280px;}
+.freitext-kul.show{display:block;}
+
+/* Kultur-Header */
+.kul-header{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-soft);margin-bottom:8px;}
+
+/* Konfig-Klappsection */
+.konfig-closed{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;background:var(--leaf-light);border:1px solid var(--leaf);border-radius:9px;}
+.konfig-sum{font-size:.98rem;font-weight:700;color:var(--leaf-dark);flex:1;}
+.btn-aendern{background:#fff;border:1px solid var(--leaf);border-radius:6px;padding:6px 14px;font-size:.83rem;font-weight:600;cursor:pointer;color:var(--leaf-dark);}
+.btn-aendern:hover{background:var(--leaf-light);}
+.btn-fertig{display:block;margin-top:12px;background:var(--leaf-dark);color:#fff;border:none;border-radius:9px;padding:11px 24px;font-size:.92rem;font-weight:700;cursor:pointer;}
+.btn-fertig:hover{background:var(--leaf);}
+.btn-fertig:disabled{background:var(--paper-line);color:var(--ink-soft);cursor:not-allowed;}
+#topfSection{margin-top:10px;transition:all .2s;}
+
+/* Aufsicht-Anzeige */
+.aufsicht-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--aufsicht-soft);border-top:1px solid var(--paper-line);flex-wrap:wrap;}
+.aufsicht-label{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--aufsicht);}
+.aufsicht-pnr{background:var(--aufsicht);color:#fff;border-radius:999px;padding:4px 12px;font-size:.9rem;font-weight:700;}
+
+/* Gesamtzähler */
+.gesamt-bar{display:flex;align-items:center;gap:20px;padding:12px 16px;background:var(--leaf-light);border-top:1px solid var(--paper-line);flex-wrap:wrap;}
+.gesamt-val{font-size:2.2rem;font-weight:800;color:var(--leaf-dark);min-width:60px;font-variant-numeric:tabular-nums;}
+.gesamt-input{font-size:2.2rem;font-weight:800;color:var(--leaf-dark);width:120px;font-variant-numeric:tabular-nums;border:none;border-bottom:2px solid transparent;background:transparent;outline:none;padding:0;}
+.gesamt-input:focus{border-bottom-color:var(--leaf);}
+.gesamt-input::placeholder{color:var(--paper-line);}
+input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-spin-button{-webkit-appearance:none;}
+.gesamt-lab{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);}
+.gesamt-highlight{border:3px solid var(--leaf);border-radius:10px;padding:8px 14px;background:var(--leaf-light);display:inline-block;min-width:110px;}
+.gesamt-ma{font-size:.95rem;color:var(--ink-soft);margin-left:auto;}
+.gesamt-highlight.gesamt-tile-fixed{width:200px;height:92px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.gesamt-highlight.gesamt-tile-fixed .gesamt-lab{white-space:nowrap;}
+.machine-switch-link{color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:6px 12px;font-size:.82rem;font-weight:600;text-decoration:none;white-space:nowrap;}
+.machine-switch-link:hover{background:rgba(255,255,255,.24);}
+
+/* Scan-Bar */
+.scanbar{background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px;}
+.scanbar .lead{font-size:.82rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--ink);margin-bottom:8px;}
+.scanbar .inrow{display:flex;gap:10px;}
+.scanbar.locked #iPnr{opacity:.55;} /* Kamera-Scanner bleibt aktiv/farbig, da er jetzt auch ohne Auftrag die Aufsicht-PNR scannen kann */
+#iPnr{flex:1;padding:14px;border:2px solid var(--leaf);border-radius:9px;font-size:1.3rem;letter-spacing:2px;font-variant-numeric:tabular-nums;background:var(--leaf-light);}
+#iPnr:focus{outline:none;background:#fff;}
+#iPnr:disabled{background:#f0efeb;border-color:var(--paper-line);color:var(--ink-soft);}
+.scan-hint{font-size:.78rem;color:var(--ink-soft);margin-top:6px;}
+
+/* Mitarbeiter-Liste */
+.malist-head{display:flex;align-items:center;padding:6px 14px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);gap:8px;}
+.ma-row{background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:6px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.ma-row.abgemeldet{opacity:.55;background:#f9f8f5;}
+.ma-row.aufsicht-row{border-left:4px solid var(--aufsicht);background:var(--aufsicht-soft);}
+.ma-pnr{font-size:1.05rem;font-weight:800;font-variant-numeric:tabular-nums;min-width:54px;}
+.ma-rolle{border-radius:999px;padding:3px 10px;font-size:.74rem;font-weight:700;white-space:nowrap;}
+.rolle-aufsicht{background:var(--aufsicht);color:#fff;}
+.rolle-service{background:var(--leaf-light);color:var(--leaf-dark);}
+.ma-time{display:flex;align-items:center;gap:4px;font-size:.9rem;font-variant-numeric:tabular-nums;}
+.ma-time input[type=time]{border:1px solid var(--paper-line);border-radius:6px;padding:4px 8px;font-size:.88rem;font-weight:600;background:var(--paper);color:var(--ink);width:96px;cursor:text;}
+.ma-row.incomplete{background:#fde8ef !important;box-shadow:inset 4px 0 0 var(--danger) !important;}
+.ma-row.incomplete.aufsicht-row{background:#fde8ef !important;border-left:4px solid var(--danger) !important;box-shadow:none !important;}
+.ma-time .sep{color:var(--ink-soft);}
+.ma-pause{display:flex;align-items:center;gap:4px;}
+.pause-seg{display:flex;border:1.5px solid var(--paper-line);border-radius:7px;overflow:hidden;}
+.pause-seg button{border:none;background:#fff;padding:5px 8px;font-size:.78rem;cursor:pointer;color:var(--ink-soft);border-right:1px solid var(--paper-line);}
+.pause-seg button:last-child{border-right:none;}
+.pause-seg button.on{background:var(--amber-soft);color:var(--amber-dark);font-weight:600;}
+.ma-spacer{flex:1;}
+.btn-abmelden{background:var(--leaf);color:#fff;border:none;border-radius:7px;padding:6px 13px;font-size:.82rem;font-weight:700;cursor:pointer;white-space:nowrap;}
+.btn-abmelden:active{background:var(--leaf-dark);}
+.btn-abmelden.off{background:var(--paper-line);color:var(--ink-soft);cursor:default;}
+.btn-del-ma{border:none;background:none;color:var(--danger);font-size:1.1rem;cursor:pointer;padding:4px 6px;}
+
+/* Aktions-Leiste */
+.action-bar{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0;}
+.btn-neue-kultur{background:var(--amber);color:#fff;border:none;border-radius:10px;padding:14px 28px;font-size:1.05rem;font-weight:800;cursor:pointer;box-shadow:var(--shadow);flex:1;min-width:200px;}
+.btn-neue-kultur:active{background:var(--amber-dark);}
+.btn-neue-kultur:disabled{background:var(--paper-line);color:var(--ink-soft);cursor:not-allowed;box-shadow:none;}
+.btn-neuer-auftrag{background:var(--leaf-dark);color:#fff;border:none;border-radius:10px;padding:14px 28px;font-size:1.1rem;font-weight:800;cursor:pointer;box-shadow:var(--shadow);flex:1;min-width:160px;letter-spacing:.02em;}
+.btn-neuer-auftrag:hover:not(:disabled){background:var(--leaf);}
+.btn-neuer-auftrag:disabled{background:var(--paper-line);color:var(--ink-soft);cursor:not-allowed;box-shadow:none;}
+.btn-auftrag-abschliessen{background:var(--amber);color:#fff;border:none;border-radius:10px;padding:14px 28px;font-size:1.1rem;font-weight:800;cursor:pointer;box-shadow:var(--shadow);flex:1;min-width:160px;letter-spacing:.02em;}
+.btn-auftrag-abschliessen:hover:not(:disabled){background:var(--amber-dark);}
+.btn-auftrag-abschliessen:disabled{background:var(--paper-line);color:var(--ink-soft);cursor:not-allowed;box-shadow:none;}
+.neuer-auftrag-hint{font-size:.8rem;color:var(--danger);margin-top:6px;display:none;}
+.neuer-auftrag-hint.show{display:block;}
+/* Admin-Login-Leiste – immer sichtbar */
+.admin-login-bar{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 8px;}
+.btn-admin-login{border:1.5px solid var(--paper-line);background:#fff;color:var(--ink-soft);border-radius:9px;padding:10px 18px;font-size:.9rem;font-weight:600;cursor:pointer;}
+.btn-admin-login.active{background:var(--amber-soft);border-color:var(--amber);color:var(--amber-dark);}
+.btn-schicht-ende{background:#fff;border:1.5px solid var(--danger);color:var(--danger);border-radius:9px;padding:10px 18px;font-size:.9rem;font-weight:700;cursor:pointer;}
+.btn-schicht-ende:disabled{border-color:var(--paper-line);color:var(--ink-soft);cursor:not-allowed;}
+
+/* Admin-Toolbar */
+.admin-toolbar{display:none;gap:10px;flex-wrap:wrap;margin:0 0 18px;}
+.admin-toolbar.show{display:flex;}
+.btn-tool{flex:1;min-width:130px;border:none;border-radius:9px;padding:12px 16px;font-size:.9rem;font-weight:700;cursor:pointer;}
+.btn-primary{background:var(--leaf);color:#fff;}
+.btn-ghost{background:#fff;border:1.5px solid var(--paper-line)!important;color:var(--ink-soft);}
+.btn-danger{background:var(--danger-soft);color:var(--danger);border:1.5px solid var(--danger)!important;}
+
+/* Toast */
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 22px;border-radius:999px;font-size:.95rem;box-shadow:var(--shadow);z-index:300;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+.toast.warn{background:var(--danger);}
+
+/* Modals */
+.modal-bg{position:fixed;inset:0;background:rgba(33,37,31,.45);display:none;align-items:center;justify-content:center;z-index:200;padding:16px;}
+.modal-bg.show{display:flex;}
+.modal{background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.3);max-width:600px;width:100%;max-height:90vh;overflow-y:auto;}
+.modal h3{margin:0;padding:16px 20px;border-bottom:1px solid var(--paper-line);font-size:1.05rem;display:flex;align-items:center;justify-content:space-between;}
+.modal .mc{padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
+.modal .mf{padding:14px 20px;border-top:1px solid var(--paper-line);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;}
+.modal input[type=password],.modal input[type=number],.modal input[type=time],.modal input[type=text]{width:100%;padding:10px;border:1.5px solid var(--paper-line);border-radius:8px;font-size:1rem;font-family:inherit;}
+.modal input:focus{outline:none;border-color:var(--leaf);}
+.modal .sec-head{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);border-top:1px solid var(--paper-line);padding-top:12px;margin-top:4px;}
+.modal .sec-head:first-child{border-top:none;padding-top:0;margin-top:0;}
+.modal label{font-size:.88rem;font-weight:600;margin-bottom:4px;display:block;}
+.mbtn{border:none;border-radius:9px;padding:11px 20px;font-size:.95rem;font-weight:700;cursor:pointer;}
+.mbtn.primary{background:var(--leaf);color:#fff;}
+.mbtn.amber{background:var(--amber);color:#fff;}
+.mbtn.ghost{background:#fff;border:1.5px solid var(--paper-line);color:var(--ink-soft);}
+.mbtn.danger{background:var(--danger);color:#fff;}
+.mbtn:disabled{background:var(--paper-line);color:var(--ink-soft);cursor:not-allowed;}
+
+/* Admin-Auftrag-Bearbeitung */
+.audit-entry{font-size:.8rem;border-bottom:1px solid var(--paper-line);padding:6px 0;color:var(--ink-soft);}
+.audit-entry b{color:var(--ink);}
+
+/* Kamera */
+.btn-cam{background:#fff;border:2px solid var(--leaf);color:var(--leaf-dark);border-radius:9px;padding:0 16px;font-size:1rem;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;flex-shrink:0;}
+.cam-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:600;}
+.cam-overlay.show{display:flex;}
+.cam-box{background:#000;border-radius:14px;overflow:hidden;width:min(96vw,520px);}
+.cam-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--leaf-dark);color:#fff;font-weight:700;}
+.cam-x{background:transparent;border:none;color:#fff;font-size:1.5rem;cursor:pointer;line-height:1;padding:0 4px;}
+.cam-video-wrap{position:relative;width:100%;aspect-ratio:4/3;}
+.cam-video-wrap video{width:100%;height:100%;object-fit:cover;display:block;}
+.cam-frame{position:absolute;inset:20% 12%;border:3px solid rgba(255,255,255,.9);border-radius:10px;pointer-events:none;}
+.cam-hint{padding:12px 16px;color:#fff;font-size:.9rem;text-align:center;background:#000;}
+
+@media(max-width:600px){
+  .cfg-row{gap:10px;}
+  .gesamt-val{font-size:1.8rem;}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">DOMINIK</div>
+  <div class="title">Topfmaschine Mayer</div>
+  <span id="syncBadge" title="Klick = jetzt synchronisieren" style="cursor:pointer">● Synchron</span>
+  <span class="admin-badge" id="adminBadge">🔓 Admin · <span id="adminTimer"></span></span>
+  <div class="spacer"></div>
+  <a class="machine-switch-link" href="http://10.10.0.210:8083/" title="Zur Stolze-Erfassung wechseln">⇄ Stolze</a>
+  <input class="session-field" id="fService" placeholder="Aufsicht-PNR P1001–P99999" type="text" inputmode="text" maxlength="6" autocomplete="off" />
+  <input class="session-field" id="fDatum" style="min-width:110px" readonly />
+</header>
+
+<main>
+  <!-- Tag-Abgeschlossen-Banner -->
+  <div class="day-closed-banner" id="dayClosedBanner">
+    🔒 Tag abgeschlossen – Erfassung gesperrt. Korrekturen nur noch mit Admin-Passwort.
+  </div>
+  <!-- Sperr-Banner: fehlt Aufsicht-PNR -->
+  <div class="lock-banner" id="lockBanner">
+    ⚠ Bitte zuerst eine gültige Aufsicht-PNR eingeben (P1001–P99999) – Erfassung ist gesperrt.
+  </div>
+
+  <!-- Scan-Bar (immer sichtbar, oben) -->
+  <div id="scanBar" class="scanbar locked">
+    <div class="lead">PERSONALNUMMER ANMELDEN</div>
+    <div class="inrow">
+      <input id="iPnr" autocomplete="off" placeholder="Personalnr. P1001–P99999" inputmode="text" enterkeyhint="done" autocapitalize="characters" disabled />
+      <button id="btnCam" class="btn-cam" type="button">📷 Kamera-Scanner</button>
+    </div>
+    <div class="scan-hint" id="scanHint">Zuerst Aufsicht-PNR eingeben (Feld oben rechts).</div>
+  </div>
+
+  <!-- Stat-Kacheln (immer sichtbar) -->
+  <div class="stat-row" id="statRow">
+    <div class="stat-card">
+      <div class="stat-val" id="statMA">0</div>
+      <div class="stat-lab">Mitarbeiter aktiv</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statAufsicht">0</div>
+      <div class="stat-lab">Aufsichten</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statStueck">—</div>
+      <div class="stat-lab">Gesamtstück</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val amber" id="statNetto">0,0</div>
+      <div class="stat-lab">Netto-Std. gesamt</div>
+    </div>
+  </div>
+
+  <div id="auftragTabs" class="auftrag-tabs" style="display:none"></div>
+
+  <!-- Kein-Auftrag-Zustand -->
+  <div id="noAuftragState" class="no-auftrag" style="display:none">
+    <div class="big">🌱</div>
+    <b>Kein aktiver Auftrag</b>
+    <div class="hint">Aufsicht-PNR eingeben (Feld oben rechts), um einen neuen Auftrag zu starten.</div>
+  </div>
+
+  <!-- Aktiver Auftrag -->
+  <div id="auftragPanel" class="auftrag-panel" style="display:none">
+    <div class="auftrag-head">
+      <span class="auftrag-nr" id="auftragNr">—</span>
+      <span class="status-badge" id="statusBadge">offen</span>
+      <span class="auftrag-datum" id="auftragDatum"></span>
+      <span class="auftrag-zeiten" id="auftragZeiten"></span>
+    </div>
+    <div class="auftrag-body">
+      <!-- Kollabierbare Konfig: Kultur + Topfgröße -->
+      <div id="konfigCollapsed" class="konfig-closed" style="display:none">
+        <span class="konfig-sum" id="konfigSummary"></span>
+        <button class="btn-aendern" type="button" id="btnAendern">✎ Ändern</button>
+      </div>
+      <div id="konfigExpanded">
+        <div class="cfg-grp">
+          <div class="kul-header" id="kulHeader">KULTUR — EINZELAUSWAHL</div>
+          <div class="chips" id="kulturChips"></div>
+          <input class="freitext-kul" id="kulturFrei" placeholder="Freitext-Kultur eingeben" />
+        </div>
+        <div class="cfg-grp" id="topfSection" style="display:none">
+          <div class="lab">Topfgröße</div>
+          <div class="chips" id="topfChips"></div>
+        </div>
+        <button class="btn-fertig" type="button" id="btnFertig" disabled>✓ Fertig</button>
+      </div>
+      <div style="font-size:.8rem;color:var(--ink-soft)" id="sonstRow"></div>
+    </div>
+    <div class="gesamt-bar">
+      <div class="gesamt-highlight gesamt-tile-fixed">
+        <input type="text" inputmode="numeric" enterkeyhint="done" class="gesamt-input" id="gesamtStueck" min="0" step="1" placeholder="—" title="Gesamtstück manuell eintragen" style="width:100%;text-align:center" />
+        <div class="gesamt-lab">Produzierte Menge</div>
+      </div>
+      <div style="color:var(--ink-soft);font-size:.85rem" id="gesamtInfo">Manuell erfassen – Mayer hat keinen automatischen Zähler.</div>
+
+      <div class="gesamt-ma" id="maInfo" style="margin-left:16px"></div>
+    </div>
+  </div>
+
+  <!-- Mitarbeiter-Liste -->
+  <div id="malist" style="display:none">
+    <div class="malist-head">
+      <span style="min-width:60px">PNR</span>
+      <span style="min-width:80px">Rolle</span>
+      <span>Start</span>
+      <span style="margin-left:8px">Ende</span>
+      <span style="margin-left:8px">Pause</span>
+    </div>
+    <div id="malistRows"></div>
+  </div>
+
+  <!-- Aktions-Leiste (nur bei aktivem Auftrag) -->
+  <div class="action-bar" id="actionBar" style="display:none">
+    <button class="btn-auftrag-abschliessen" id="btnAuftragAbschliessen" disabled>Auftrag Abschließen</button>
+    <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+      <button class="btn-neuer-auftrag" id="btnNeuerAuftrag" disabled>▶ Auftrag Neu</button>
+      <div class="neuer-auftrag-hint" id="btnNeuerAuftragHint">Gesamtstück muss eingetragen sein</div>
+    </div>
+    <button class="btn-neue-kultur" id="btnNeueKultur" style="display:none">🌿 Neue Kultur</button>
+  </div>
+
+  <!-- Admin-Login-Leiste – immer sichtbar -->
+  <div class="admin-login-bar">
+    <button class="btn-admin-login" id="btnAdminLogin">🔐 Admin-Modus</button>
+    <button class="btn-schicht-ende" id="btnSchichtEnde" disabled>🔒 Tag abschließen</button>
+    <span class="admin-badge" style="position:static;background:none;font-size:.82rem;color:var(--amber-dark);padding:0;align-self:center" id="adminTimerBar"></span>
+  </div>
+
+  <!-- Admin-Toolbar -->
+  <div class="admin-toolbar" id="adminToolbar">
+    <button class="btn-tool btn-primary" id="btnExportCsv">⭳ CSV exportieren</button>
+    <button class="btn-tool btn-ghost"   id="btnAuditLog">📋 Audit-Log</button>
+    <button class="btn-tool btn-ghost"   id="btnEditAuftrag">✎ Auftrag bearbeiten</button>
+    <button class="btn-tool btn-danger"  id="btnDeleteAuftrag">🗑 Auftrag löschen</button>
+    <button class="btn-tool btn-ghost"   id="btnTagWiederOeffnen" style="display:none">🔓 Tag wieder öffnen</button>
+  </div>
+
+  <div style="font-size:.75rem;color:var(--ink-soft);margin-top:8px" id="lastReload"></div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<!-- Kamera -->
+<div class="cam-overlay" id="camOverlay">
+  <div class="cam-box">
+    <div class="cam-head"><span>📷 Kamera-Scanner</span><button id="camClose" class="cam-x">✕</button></div>
+    <div class="cam-video-wrap"><video id="camVideo" playsinline muted></video><div class="cam-frame"></div></div>
+    <div class="cam-hint" id="camHint">Barcode in den Rahmen halten …</div>
+  </div>
+</div>
+
+<!-- Passwort-Modal -->
+<div class="modal-bg" id="pwModal">
+  <div class="modal">
+    <h3 id="pwTitle">Passwort</h3>
+    <div class="mc">
+      <p id="pwText" style="margin:0;color:var(--ink-soft);font-size:.9rem"></p>
+      <input type="password" id="pwInput" placeholder="Passwort" />
+    </div>
+    <div class="mf">
+      <button class="mbtn ghost" id="pwCancel">Abbrechen</button>
+      <button class="mbtn primary" id="pwOk">Bestätigen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Schritt 1: Aktuellen Auftrag abschließen -->
+<div class="modal-bg" id="nkModal">
+  <div class="modal">
+    <h3>Aktuellen Auftrag abschließen<button class="cam-x" id="nkClose" style="color:var(--ink-soft);">✕</button></h3>
+    <div class="mc">
+      <div id="nkCurrentInfo" style="background:var(--paper-line);border-radius:8px;padding:10px 12px;font-size:.92rem;color:var(--ink)"></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:120px">
+          <label>Endzeit</label>
+          <input type="time" id="nkEnde" />
+        </div>
+        <div style="flex:1;min-width:120px">
+          <label>Gesamtstückzahl <span style="color:var(--danger)">*</span></label>
+          <input type="text" inputmode="numeric" enterkeyhint="done" id="nkStueck" min="0" step="1" placeholder="Pflichtangabe" />
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="mbtn ghost" id="nkCancel">Abbrechen</button>
+      <button class="mbtn amber" id="nkStep1Ok" disabled>Abschließen ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- Auftrag Abschließen ohne Nachfolgeauftrag (Pause) -->
+<div class="modal-bg" id="paModal">
+  <div class="modal">
+    <h3>Auftrag Abschließen<button class="cam-x" id="paClose" style="color:var(--ink-soft);">✕</button></h3>
+    <div class="mc">
+      <div id="paCurrentInfo" style="background:var(--paper-line);border-radius:8px;padding:10px 12px;font-size:.92rem;color:var(--ink)"></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;">
+        <div style="flex:1;min-width:120px">
+          <label>Endzeit</label>
+          <input type="time" id="paEnde" />
+        </div>
+        <div style="flex:1;min-width:120px">
+          <label>Gesamtstückzahl <span style="color:var(--danger)">*</span></label>
+          <input type="text" inputmode="numeric" enterkeyhint="done" id="paStueck" min="0" step="1" placeholder="Pflichtangabe" />
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="mbtn ghost" id="paCancel">Abbrechen</button>
+      <button class="mbtn amber" id="paOk" disabled>Abschließen ✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- Schritt 2: Neue Kultur starten -->
+<div class="modal-bg" id="nkStep2Modal">
+  <div class="modal">
+    <h3>🌿 Neue Kultur starten<button class="cam-x" id="nkStep2Close" style="color:var(--ink-soft);">✕</button></h3>
+    <div class="mc">
+      <div>
+        <div class="kul-header" id="nkKulHeader">KULTUR — EINZELAUSWAHL</div>
+        <div class="chips" id="nkKulturChips"></div>
+        <input class="freitext-kul" id="nkKulturFrei" placeholder="Freitext-Kultur" style="max-width:100%" />
+      </div>
+      <div id="nkTopfSection" style="display:none;margin-top:10px">
+        <label>Topfgröße</label>
+        <div class="chips" id="nkTopfChips"></div>
+      </div>
+      <div class="sec-head">Mitarbeiter in neuen Auftrag übernehmen</div>
+      <div id="nkTransferList" style="display:flex;flex-direction:column;gap:6px;font-size:.9rem"></div>
+      <div id="nkValidHint" style="color:var(--danger);font-size:.85rem;display:none;margin-top:8px"></div>
+    </div>
+    <div class="mf">
+      <button class="mbtn ghost" id="nkStep2Cancel">Abbrechen</button>
+      <button class="mbtn amber" id="nkOk" disabled>Starten ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- Schicht-beenden-Modal -->
+<div class="modal-bg" id="sbModal">
+  <div class="modal">
+    <h3>🔒 Tag abschließen<button class="cam-x" id="sbClose" style="color:var(--ink-soft);">✕</button></h3>
+    <div class="mc">
+      <div class="sec-head">Aktuellen Auftrag abschließen</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:120px">
+          <label>Endzeit</label>
+          <input type="time" id="sbEnde" />
+        </div>
+        <div style="flex:1;min-width:120px">
+          <label>Gesamtstückzahl <span style="color:var(--danger)">*</span></label>
+          <input type="text" inputmode="numeric" enterkeyhint="done" id="sbStueck" min="0" step="1" placeholder="Pflichtangabe" />
+        </div>
+      </div>
+      <p style="font-size:.85rem;color:var(--ink-soft);margin:12px 0 0">
+        Alle aktiven Mitarbeiter erhalten automatisch die Endzeit. Danach ist kein Auftrag mehr aktiv.
+      </p>
+    </div>
+    <div class="mf">
+      <div id="sbValidHint" style="display:none;font-size:.82rem;color:var(--danger);
+           padding:8px 10px;background:#fde8ef;border-radius:7px;margin-bottom:4px;"></div>
+      <button class="mbtn ghost" id="sbCancel">Abbrechen</button>
+      <button class="mbtn danger" id="sbOk" disabled>🔒 Tag abschließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin-Auftrag-Bearbeiten-Modal -->
+<div class="modal-bg" id="editModal">
+  <div class="modal">
+    <h3>✎ Auftrag bearbeiten<button class="cam-x" id="editClose" style="color:var(--ink-soft);">✕</button></h3>
+    <div class="mc">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:100px"><label>Auftragsstart</label><input type="time" id="editStart" /></div>
+        <div style="flex:1;min-width:100px"><label>Auftragsende</label><input type="time" id="editEnde" /></div>
+        <div style="flex:1;min-width:100px"><label>Gesamtstück</label><input type="text" inputmode="numeric" enterkeyhint="done" id="editStueck" min="0" /></div>
+      </div>
+      <div><label>Status</label>
+        <select id="editStatus" style="width:100%;padding:10px;border:1.5px solid var(--paper-line);border-radius:8px;font-size:1rem;">
+          <option value="offen">offen</option>
+          <option value="abgeschlossen">abgeschlossen</option>
+        </select>
+      </div>
+      <div id="editMaSection">
+        <div class="sec-head">Mitarbeiter-Zeiten</div>
+        <div id="editMaRows"></div>
+      </div>
+      <div><label>Sonstiges</label><input type="text" id="editSonst" /></div>
+    </div>
+    <div class="mf">
+      <button class="mbtn ghost" id="editCancel">Abbrechen</button>
+      <button class="mbtn primary" id="editOk">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Audit-Log-Modal -->
+<div class="modal-bg" id="auditModal">
+  <div class="modal">
+    <h3>📋 Audit-Log<button class="cam-x" id="auditClose" style="color:var(--ink-soft);">✕</button></h3>
+    <div class="mc" id="auditBody" style="gap:0;max-height:60vh;overflow-y:auto;"></div>
+    <div class="mf"><button class="mbtn ghost" id="auditDone">Schließen</button></div>
+  </div>
+</div>
+
+<!-- Auftrag-Löschen-Modal -->
+<div class="modal-bg" id="deleteModal">
+  <div class="modal">
+    <h3>🗑 Auftrag löschen<button class="cam-x" id="deleteClose" style="color:var(--ink-soft);">✕</button></h3>
+    <div class="mc">
+      <div style="background:var(--danger-soft);border:1.5px solid var(--danger);border-radius:8px;padding:12px 14px;color:var(--danger);font-weight:600;font-size:.92rem;">
+        ⚠ Diese Aktion ist unwiderruflich. Auftrag und alle Mitarbeiterdaten werden vollständig gelöscht.
+      </div>
+      <div>Auftrag: <b id="deleteAuftragNr">—</b></div>
+      <div>
+        <label style="font-size:.88rem;font-weight:600;display:block;margin-bottom:6px">Zur Bestätigung Auftragsnummer eingeben:</label>
+        <input type="text" id="deleteConfirmInput" placeholder="z.B. TM-20260712-001" autocomplete="off" />
+      </div>
+    </div>
+    <div class="mf">
+      <button class="mbtn ghost" id="deleteCancel">Abbrechen</button>
+      <button class="mbtn danger" id="deleteOk" disabled>🗑 Endgültig löschen</button>
+    </div>
+  </div>
+</div>
+
+<script src="sync.js"></script>
+<script>
+"use strict";
+/* ── Konfiguration ───────────────────────────────────────────────────── */
+const PNR_MIN = 1001, PNR_MAX = 99999;
+const RELOCK_MIN = 5; // Minuten Sperrzeit nach doppeltem Scan
+let KULTUREN  = [];
+let ARBEITEN  = [];
+let TOPFGROESSEN = [];
+
+/* ── State ────────────────────────────────────────────────────────────── */
+let state = {
+  auftrag:     null,   // { id, auftragsnr, datum, arbeit, kultur, kultur_frei, topfgroesse, auftrag_start, auftrag_ende, status, mitarbeiter }
+  auftraege:    [],
+  selectedAuftragId: null,
+  datum:       "",     // "TT.MM.JJJJ"
+  datumISO:    "",     // "JJJJ-MM-TT"
+  aufsichtPnr: "",     // PNR-String aus Header-Feld
+  dayIsClosed: false,  // Tag bereits per day/close abgeschlossen
+};
+
+/* ── Konfig-Collapse-State ───────────────────────────────────────────── */
+let _konfigCollapsed  = false;
+let _lastAuftragId    = null;
+let _konfigEditTopf   = null;
+let _lastGesamtValue  = "";   // Topfgröße-Auswahl in der laufenden Edit-Session (null = noch nicht gewählt)
+
+/* ── Admin-Session ────────────────────────────────────────────────────── */
+const ADMIN_MIN = 15;
+let _adminPw      = null;
+let _adminUntil   = 0;
+let _adminTimer   = null;
+function isAdmin(){ return !!_adminPw && Date.now() < _adminUntil; }
+
+function refreshAdminUI(){
+  const active = isAdmin();
+  $("adminBadge").classList.toggle("show", active);
+  $("btnAdminLogin").classList.toggle("active", active);
+  $("adminToolbar").classList.toggle("show", active);
+  const reopenBtn = $("btnTagWiederOeffnen");
+  if(reopenBtn) reopenBtn.style.display = (active && state.dayIsClosed) ? "" : "none";
+  if(active){
+    const min = Math.ceil((_adminUntil - Date.now()) / 60000);
+    $("adminTimer").textContent = min + " min";
+    $("adminTimerBar").textContent = `Admin aktiv (${min} min)`;
+    $("btnAdminLogin").textContent = `🔓 Admin aktiv`;
+  } else {
+    $("adminTimerBar").textContent = "";
+    $("btnAdminLogin").textContent = "🔐 Admin-Modus";
+  }
+}
+
+async function ensureAdmin(title, text){
+  if(isAdmin()) return _adminPw;
+  const pw = await askPw(title || "Admin-Passwort", text || "Bitte Admin-Passwort eingeben.");
+  if(!pw) return null;
+  const ok = await TMSync.adminVerify(pw);
+  if(!ok){ toast("Falsches Passwort", true); return null; }
+  _adminPw    = pw;
+  _adminUntil = Date.now() + ADMIN_MIN * 60000;
+  if(_adminTimer) clearInterval(_adminTimer);
+  _adminTimer = setInterval(() => { if(!isAdmin()){ clearInterval(_adminTimer); _adminTimer = null; } refreshAdminUI(); }, 30000);
+  refreshAdminUI();
+  toast(`Admin-Modus aktiv für ${ADMIN_MIN} Minuten`);
+  return pw;
+}
+
+$("btnAdminLogin").onclick = async () => {
+  if(isAdmin()){ _adminPw = null; _adminUntil = 0; refreshAdminUI(); toast("Admin beendet"); return; }
+  await ensureAdmin("Admin-Modus", "Passwort eingeben.");
+};
+
+/* ── Passwort-Gate ────────────────────────────────────────────────────── */
+let _pwResolve = null;
+function askPw(title, text){
+  return new Promise(res => {
+    _pwResolve = res;
+    $("pwTitle").textContent = title; $("pwText").textContent = text || "";
+    $("pwInput").value = ""; $("pwModal").classList.add("show");
+    setTimeout(() => $("pwInput").focus(), 60);
+  });
+}
+$("pwOk").onclick = () => { const v = $("pwInput").value; $("pwModal").classList.remove("show"); if(_pwResolve){ _pwResolve(v); _pwResolve = null; } };
+$("pwCancel").onclick = () => { $("pwModal").classList.remove("show"); if(_pwResolve){ _pwResolve(null); _pwResolve = null; } };
+$("pwInput").addEventListener("keydown", e => { if(e.key === "Enter") $("pwOk").click(); });
+
+/* ── Hilfsfunktionen ─────────────────────────────────────────────────── */
+function $(id){ return document.getElementById(id); }
+// Fetch mit Timeout: verhindert, dass die Seite bei einer haengenden
+// WLAN-Verbindung unbegrenzt wartet (gleiche Ursache wie der
+// Sync-Deadlock in sync.js, siehe dortigen _fetchTimeout).
+function _fetchTimeout(url, opts, timeoutMs){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), timeoutMs || 12000);
+  return fetch(url, Object.assign({}, opts, {signal: ctrl.signal})).finally(()=>clearTimeout(t));
+}
+function nowHM(){ const d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+function pad(n){ return String(n).padStart(2, "0"); }
+function esc(s){ const t=document.createElement("div"); t.textContent=(s==null||s===undefined)?"":String(s); return t.innerHTML; }
+function isoToday(){ const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); }
+function displayDate(iso){ const [y,m,d] = iso.split("-"); return `${d}.${m}.${y}`; }
+function timeToMin(t){ if(!t) return null; const [h,m] = t.split(":").map(Number); return h*60+m; }
+function nettoH(start, ende, pause){
+  if(!start || !ende) return 0;
+  let m = timeToMin(ende) - timeToMin(start);
+  if(m < 0) m += 1440;
+  m -= (pause || 0) * 60;
+  return Math.max(0, m / 60);
+}
+function calcAutoPause(start, ende){
+  if(!start || !ende) return 0;
+  const BRK = [{s:9*60,e:9*60+15},{s:12*60,e:12*60+15},{s:15*60,e:15*60+15}];
+  const sM = timeToMin(start), eM0 = timeToMin(ende);
+  let eM = eM0 < sM ? eM0 + 1440 : eM0;
+  let min = 0;
+  BRK.forEach(b => { const ov = Math.min(b.e, eM) - Math.max(b.s, sM); if(ov > 0) min += ov; });
+  return min / 60;
+}
+function kulturName(k, frei){
+  if(k === 23) return frei || "Freitext";
+  if(k && k >= 1 && k <= KULTUREN.length) return KULTUREN[k-1];
+  return "";
+}
+
+/* 15-Minuten-Regel: Startzeit für neuen Mitarbeiter bestimmen.
+   Referenzzeit = Startzeit der Aufsicht (nicht des Auftrags). */
+function calcWorkerStart(a, scanTime){
+  const aufsicht = (a.mitarbeiter || []).find(m => m.rolle === "aufsicht" && m.start);
+  const refStart = aufsicht ? aufsicht.start : a.auftrag_start;
+  if(!refStart) return scanTime;
+  const diff = timeToMin(scanTime) - timeToMin(refStart);
+  const diffMins = diff < 0 ? diff + 1440 : diff;
+  return diffMins <= 15 ? refStart : scanTime;
+}
+
+/* ── Audio ────────────────────────────────────────────────────────────── */
+let _actx = null;
+function actx(){
+  try{
+    if(!_actx || _actx.state==="closed") _actx = new(window.AudioContext||window.webkitAudioContext)();
+    if(_actx.state==="suspended") _actx.resume().catch(()=>{_actx=null;});
+    return _actx;
+  }catch(e){ return null; }
+}
+function _audioWake(){
+  try{
+    const c = actx();
+    if(c && c.state==="suspended") c.resume().catch(()=>{_actx=null;});
+  }catch(e){}
+}
+document.addEventListener("visibilitychange", () => { if(!document.hidden) _audioWake(); });
+document.addEventListener("touchstart", _audioWake, {passive:true});
+function beep(freqs, type="sine"){ const c = actx(); if(!c) return; freqs.forEach((f,i)=>{ const o=c.createOscillator(),g=c.createGain(); o.connect(g); g.connect(c.destination); o.type=type; const t=c.currentTime+i*.12; o.frequency.setValueAtTime(f,t); g.gain.setValueAtTime(1,t); g.gain.exponentialRampToValueAtTime(.001,t+.18); o.start(t); o.stop(t+.18); }); }
+function tonOk(){ beep([660,880]); }
+function tonErr(){ beep([320,140],"square"); }
+
+function toast(msg, warn){
+  const t = $("toast"); t.textContent = msg;
+  t.className = "toast show" + (warn ? " warn" : "");
+  clearTimeout(t._tm); t._tm = setTimeout(() => t.className = "toast", 2200);
+  if(warn) tonErr();
+}
+
+/* ── Render ───────────────────────────────────────────────────────────── */
+function auftragMissingList(a, closed){
+  if(!a) return [];
+  const miss = [];
+  if(!a.auftrag_start) miss.push("Auftragsstart");
+  if(a.kultur === null || a.kultur === undefined) miss.push("Kultur");
+  else if(a.kultur === KULTUREN.length + 1 && !(a.kultur_frei||"").trim()) miss.push("Freitext-Kultur");
+  if(!a.topfgroesse) miss.push("Topfgröße");
+  if(closed && !a.auftrag_ende) miss.push("Auftragsende");
+  if(closed && (a.gesamtstueck === null || a.gesamtstueck === undefined)) miss.push("Gesamtstück");
+  (a.mitarbeiter||[]).forEach(m => {
+    if(!m.start && closed) miss.push(`Mitarbeiter ${m.pnr}: Startzeit`); // nur bei abgeschlossenen Aufträgen
+    if(closed && !m.ende) miss.push(`Mitarbeiter ${m.pnr}: Endzeit`);
+  });
+  return miss;
+}
+
+function orderTabLabel(a){
+  const kultur = getKulturName(a) || "Kultur offen";
+  const topf = a.topfgroesse || "Topf offen";
+  const menge = (a.gesamtstueck !== null && a.gesamtstueck !== undefined) ? `${a.gesamtstueck} Stk` : "Menge offen";
+  return `${kultur} · ${topf} · ${menge}`;
+}
+
+function upsertAuftragInList(a){
+  if(!a || !a.id) return;
+  const idx = state.auftraege.findIndex(x => x.id === a.id);
+  if(idx >= 0) state.auftraege[idx] = a;
+  else state.auftraege.push(a);
+  state.auftraege.sort((x,y) => String(x.auftragsnr||"").localeCompare(String(y.auftragsnr||"")) || String(x.auftrag_start||"").localeCompare(String(y.auftrag_start||"")));
+}
+
+function setSelectedAuftrag(a){
+  if(!a || !a.id) return;
+  state.auftrag = a;
+  state.selectedAuftragId = a.id;
+  upsertAuftragInList(a);
+  renderAll();
+}
+
+function renderAuftragTabs(){
+  const c = $("auftragTabs"); if(!c) return;
+  if(!state.auftraege.length){ c.style.display = "none"; c.innerHTML = ""; return; }
+  c.style.display = "flex";
+  c.innerHTML = "";
+  state.auftraege.forEach(a => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "auftrag-tab" + (state.auftrag && state.auftrag.id === a.id ? " active" : "") + (a.has_missing_data ? " missing" : "");
+    b.title = a.missing_fields && a.missing_fields.length ? "Fehlende Angaben: " + a.missing_fields.join(", ") : orderTabLabel(a);
+    b.innerHTML = `<span class="nr">${a.auftragsnr||"TM-…"}</span><span class="meta">${esc(orderTabLabel(a))}</span><span class="status">${a.status||"offen"} · ${(a.auftrag_start||"—")} – ${(a.auftrag_ende||"laufend")}</span>`;
+    b.onclick = () => setSelectedAuftrag(a);
+    c.appendChild(b);
+  });
+}
+
+function mergeWorkersIntoLocal(a, serverWorkers){
+  a.mitarbeiter = a.mitarbeiter || [];
+  const byId = new Map(a.mitarbeiter.map(m => [m.id, m]));
+  serverWorkers.forEach(sm => {
+    const local = byId.get(sm.id);
+    if(local){
+      const savedCreated = local._created;
+      const savedEnde    = local.ende;
+      const savedPause   = local.pause;
+      Object.assign(local, sm);
+      if(savedCreated) local._created = savedCreated;
+      // Lokal gesetzte Endzeit beibehalten wenn Server sie noch nicht hat (pending sync)
+      if(!local.ende && savedEnde){ local.ende = savedEnde; local.pause = savedPause; }
+      return;
+    }
+    const duplicate = a.mitarbeiter.find(m =>
+      m.pnr === sm.pnr && m.rolle === sm.rolle && (m.start||"") === (sm.start||"") && !m._serverConfirmed
+    );
+    if(duplicate){
+      const saved = duplicate._created;
+      Object.assign(duplicate, sm, {_serverConfirmed:true});
+      if(saved) duplicate._created = saved;
+      return;
+    }
+    a.mitarbeiter.push({...sm, _serverConfirmed:true});
+  });
+}
+
+function updateNeuerAuftragBtn(){
+  const a      = state.auftrag;
+  const has    = !!a;
+  const closed = a && a.status === "abgeschlossen";
+  const naBtn  = $("btnNeuerAuftrag");
+  const naHint = $("btnNeuerAuftragHint");
+  const paBtn  = $("btnAuftragAbschliessen");
+  if(!naBtn) return;
+  // Pause-Button: aktiv wenn Auftrag offen (Stückzahl nicht notwendig)
+  if(paBtn) paBtn.disabled = !has || closed;
+  const gsEl      = $("gesamtStueck");
+  const gsInput   = gsEl ? parseInt(gsEl.value, 10) : NaN;
+  const gsObj     = a ? a.gesamtstueck : null;
+  const gsGültig  = (!isNaN(gsInput) && gsInput >= 0) ||
+                    (gsObj !== null && gsObj !== undefined && !isNaN(Number(gsObj)) && Number(gsObj) >= 0);
+  const hasKultur = a && (a.kultur !== null && a.kultur !== undefined);
+  const hasTopf   = a && !!a.topfgroesse;
+  // Wenn Auftrag bereits abgeschlossen (nach Pause): Auftrag Neu trotzdem aktiv → geht direkt zu Step 2
+  const bereit    = has && (closed || (gsGültig && hasKultur && hasTopf));
+  naBtn.disabled  = !bereit;
+  if(naHint){
+    if(!has || closed){
+      naHint.classList.remove("show");
+    } else if(!bereit){
+      const miss = [];
+      if(!hasKultur) miss.push("Kultur");
+      if(!hasTopf)   miss.push("Topfgröße");
+      if(!gsGültig)  miss.push("Gesamtstück");
+      naHint.textContent = "Noch ausstehend: " + miss.join(", ");
+      naHint.classList.add("show");
+    } else {
+      naHint.classList.remove("show");
+    }
+  }
+}
+
+function renderAll(){
+  const a = state.auftrag;
+  const has = !!a;
+  const svcPnr = $("fService").value.trim();
+  const hasSvc = /^P\d{4,5}$/i.test(svcPnr);
+  $("fDatum").value = state.datum;
+  renderAuftragTabs();
+
+  // Tag-Abgeschlossen-Banner
+  $("dayClosedBanner").classList.toggle("show", state.dayIsClosed);
+
+  // Lock-Banner: fehlt Aufsicht-PNR (nur wenn Tag noch nicht abgeschlossen)
+  $("lockBanner").classList.toggle("show", !hasSvc && !state.dayIsClosed);
+
+  // Schicht-Button: Label und State je nach Tag-Status
+  const seBtn = $("btnSchichtEnde");
+  if(state.dayIsClosed){
+    seBtn.textContent = "✓ Tag abgeschlossen";
+    seBtn.disabled = true;
+  } else {
+    if(!seBtn.textContent.startsWith("🔒 Noch")) seBtn.textContent = "🔒 Tag abschließen";
+    seBtn.disabled = !has;
+  }
+
+  // Scan-Bar: immer sichtbar; Input gesperrt wenn kein Auftrag oder kein Aufsicht
+  const scanLocked = !has || !hasSvc;
+  $("iPnr").disabled = scanLocked;
+  $("scanBar").classList.toggle("locked", scanLocked);
+  if(!hasSvc)    $("scanHint").textContent = "Zuerst Aufsicht-PNR eingeben (Feld oben rechts).";
+  else if(!has)  $("scanHint").textContent = "Kein Auftrag aktiv – Enter im Aufsicht-PNR-Feld drücken um Auftrag zu starten.";
+  else           $("scanHint").textContent = "Scan → Mitarbeiter wird dem laufenden Auftrag zugeordnet.";
+
+  // Kein-Auftrag-State
+  $("noAuftragState").style.display = has ? "none" : "block";
+  $("auftragPanel").style.display   = has ? "block" : "none";
+  $("malist").style.display         = has ? "block" : "none";
+  $("actionBar").style.display      = has ? "flex"  : "none";
+
+  // Schicht-beenden Button: nur aktiv wenn Auftrag offen
+
+  // Stat-Kacheln (auch ohne Auftrag sichtbar)
+  // "Mitarbeiter aktiv" zaehlt bewusst ALLE aktiven Personen inkl. Aufsicht -
+  // die Aufsicht ist eine aktive Mitarbeiterin, keine Sonderkategorie.
+  // "Aufsichten" bleibt zusaetzlich als Teilmenge sichtbar (informativ).
+  const maRows = a ? (a.mitarbeiter || []) : [];
+  const activeMA  = maRows.filter(m => !m.ende).length;
+  const activeAuf = maRows.filter(m => m.rolle === "aufsicht" && !m.ende).length;
+  const totalMH   = maRows.reduce((s,m) => s + nettoH(m.start, m.ende, m.pause), 0);
+  const stk = a && (a.gesamtstueck !== null && a.gesamtstueck !== undefined) ? a.gesamtstueck : "—";
+  $("statMA").textContent       = activeMA;
+  $("statAufsicht").textContent = activeAuf;
+  $("statStueck").textContent   = stk;
+  $("statNetto").textContent    = totalMH > 0
+    ? totalMH.toLocaleString("de-DE",{maximumFractionDigits:1})
+    : "0,0";
+
+  if(!has) { refreshAdminUI(); return; }
+  const closed = a.status === "abgeschlossen";
+  const orderMissing = auftragMissingList(a, closed);
+  $("auftragPanel").classList.toggle("incomplete", orderMissing.length > 0);
+  $("auftragPanel").title = orderMissing.length ? "Fehlende Angaben: " + orderMissing.join(", ") : "";
+  if(closed && !isAdmin()){
+    $("iPnr").disabled = true;
+    $("scanBar").classList.add("locked");
+    $("scanHint").textContent = "Auftrag bereits abgeschlossen.";
+  }
+
+  // Kopfzeile
+  $("auftragNr").textContent = a.auftragsnr || "—";
+  $("statusBadge").textContent = closed ? "abgeschlossen" : "offen";
+  $("statusBadge").className   = "status-badge " + (closed ? "status-abgeschlossen" : "status-offen");
+  $("auftragDatum").textContent = a.datum ? displayDate(a.datum) : "";
+  $("auftragZeiten").textContent = (a.auftrag_start || "—") + " – " + (a.auftrag_ende || "laufend");
+
+  // Konfig-Collapse: beim ersten Laden eines Auftrags auto-kollabieren wenn schon konfiguriert
+  if(a.id !== _lastAuftragId){
+    _lastAuftragId = a.id;
+    const alreadyConfigured = !!(a.kultur !== null && a.kultur !== undefined && a.topfgroesse);
+    _konfigCollapsed = alreadyConfigured;
+    _konfigEditTopf  = alreadyConfigured ? null : null; // bei neuem Auftrag: Topf nicht vorbelegt
+  }
+  renderKulturSection(a);
+
+  // Gesamtstück: Input-Feld befüllen (nur wenn kein Fokus)
+  const gs = $("gesamtStueck");
+  if(gs) gs.disabled = closed && !isAdmin();
+  if(gs && document.activeElement !== gs){
+    const targetGs = (a.gesamtstueck !== null && a.gesamtstueck !== undefined) ? String(a.gesamtstueck) : "";
+    // Nicht auf leer zurücksetzen wenn der User bereits etwas eingetippt hat
+    // (pending Sync kann a.gesamtstueck kurzzeitig null machen)
+    if(!(gs.value !== "" && targetGs === "")) gs.value = targetGs;
+    _lastGesamtValue = gs.value;
+  }
+  $("gesamtInfo").textContent = totalMH > 0
+    ? `${totalMH.toLocaleString("de-DE",{maximumFractionDigits:1})} Netto-Std.`
+    : "";
+  const activeMa = maRows.filter(m => !m.ende);
+  $("maInfo").textContent = `${activeMa.length} aktiv · ${maRows.length} gesamt`;
+
+  renderMaList(a, closed);
+
+  // Neuer-Auftrag-Button sofort aktualisieren
+  updateNeuerAuftragBtn();
+  // Fallback-Button ausgeblendet lassen
+  if($("btnNeueKultur")) $("btnNeueKultur").style.display = "none";
+
+  refreshAdminUI();
+
+  const el = $("lastReload");
+  const now = new Date();
+  if(el) el.textContent = `Zuletzt aktualisiert: ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+function chipSetup(container, items, current, onSelect, extraClass){
+  container.innerHTML = "";
+  items.forEach((label, i) => {
+    const idx = i + 1;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (extraClass ? " " + extraClass : "") + (current === idx ? " on" : "");
+    b.dataset.v = idx;
+    if(extraClass === "kul"){
+      b.innerHTML = `<span class="kul-num">${idx}</span>${label}`;
+    } else {
+      b.textContent = label;
+    }
+    b.onclick = () => onSelect(idx === current ? null : idx);
+    container.appendChild(b);
+  });
+}
+
+function getKulturName(a){
+  if(!a || a.kultur === null || a.kultur === undefined) return null;
+  const freiIdx = KULTUREN.length + 1;
+  if(a.kultur === freiIdx) return a.kultur_frei || "Freitext";
+  return KULTUREN[a.kultur - 1] || null;
+}
+
+function renderKulturSection(a){
+  const hasKultur = a.kultur !== null && a.kultur !== undefined;
+  const hasTopf   = !!a.topfgroesse;
+  const ready     = hasKultur && hasTopf;
+  // Kollabiert oder expandiert?
+  if(_konfigCollapsed && ready){
+    $("konfigCollapsed").style.display = "flex";
+    $("konfigExpanded").style.display  = "none";
+    $("konfigSummary").textContent = `${getKulturName(a)} · ${a.topfgroesse}`;
+  } else {
+    $("konfigCollapsed").style.display = "none";
+    $("konfigExpanded").style.display  = "block";
+    renderKulturChips(a);
+    updateKulturTopfUI(a);
+  }
+}
+
+function updateKulturTopfUI(a){
+  const freiIdx = KULTUREN.length + 1;
+  const hasKultur = a.kultur !== null && a.kultur !== undefined;
+  // Topf-Section sichtbar sobald Kultur gewählt
+  $("topfSection").style.display = hasKultur ? "block" : "none";
+  // Fertig-Button: Kultur UND frisch gewähltes Topf erforderlich
+  $("btnFertig").disabled = !(hasKultur && (_konfigEditTopf !== null || !!a.topfgroesse));
+  // Kultur-Header
+  $("kulHeader").textContent = `KULTUR — EINZELAUSWAHL, ${freiIdx} = FREITEXT`;
+}
+
+function renderTopfChips(a){
+  const c = $("topfChips"); if(!c) return;
+  c.innerHTML = "";
+  TOPFGROESSEN.forEach(name => {
+    const b = document.createElement("button");
+    // Topfgröße NIEMALS vorbelegt — nur die in dieser Session aktiv gewählte (_konfigEditTopf)
+    const selectedTopf = _konfigEditTopf !== null ? _konfigEditTopf : a.topfgroesse;
+    b.type = "button"; b.className = "chip topf" + (selectedTopf === name ? " on" : "");
+    b.textContent = name;
+    b.onclick = () => {
+      _konfigEditTopf = (_konfigEditTopf === name ? null : name);
+      renderTopfChips(a);
+      $("btnFertig").disabled = !(a.kultur !== null && (_konfigEditTopf !== null || !!a.topfgroesse));
+    };
+    c.appendChild(b);
+  });
+}
+
+function renderKulturChips(a){
+  const freiIdx = KULTUREN.length + 1;
+  const c = $("kulturChips"); if(!c) return;
+  c.innerHTML = "";
+  KULTUREN.forEach((name, i) => {
+    const idx = i + 1;
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip kul" + (a.kultur === idx ? " on" : "");
+    b.innerHTML = `<span class="kul-num">${idx}</span>${name}`;
+    b.onclick = () => {
+      a.kultur = (a.kultur === idx ? null : idx);
+      if(a.kultur !== freiIdx) a.kultur_frei = "";
+      _konfigEditTopf = null;
+      a.topfgroesse = "";
+      TMSync.queueAuftragUpdate({ auftrag_id: a.id, kultur: a.kultur, kultur_frei: a.kultur_frei, topfgroesse: "" });
+      renderKulturChips(a);
+      $("kulturFrei").classList.toggle("show", a.kultur === freiIdx);
+      updateKulturTopfUI(a);
+      renderTopfChips(a);
+    };
+    c.appendChild(b);
+  });
+  // Freitext-Chip
+  const bf = document.createElement("button");
+  bf.type = "button"; bf.className = "chip kul" + (a.kultur === freiIdx ? " on" : "");
+  bf.innerHTML = `<span class="kul-num">${freiIdx}</span>Freitext`;
+  bf.onclick = () => {
+    a.kultur = (a.kultur === freiIdx ? null : freiIdx);
+    _konfigEditTopf = null;
+    a.topfgroesse = "";
+    TMSync.queueAuftragUpdate({ auftrag_id: a.id, kultur: a.kultur, kultur_frei: a.kultur_frei, topfgroesse: "" });
+    renderKulturChips(a);
+    $("kulturFrei").classList.toggle("show", a.kultur === freiIdx);
+    updateKulturTopfUI(a);
+    renderTopfChips(a);
+  };
+  c.appendChild(bf);
+  $("kulturFrei").classList.toggle("show", a.kultur === freiIdx);
+  $("kulturFrei").value = a.kultur_frei || "";
+  // Header aktualisieren
+  $("kulHeader").textContent = `KULTUR — EINZELAUSWAHL, ${freiIdx} = FREITEXT`;
+}
+
+// Fertig-Button Handler — commit Topf zu a.topfgroesse, kollabieren
+$("btnFertig").onclick = () => {
+  const a = state.auftrag; if(!a) return;
+  if(_konfigEditTopf === null && !a.topfgroesse) return; // Sicherheitscheck
+  if(_konfigEditTopf !== null) a.topfgroesse = _konfigEditTopf;
+  TMSync.queueAuftragUpdate({ auftrag_id: a.id, topfgroesse: a.topfgroesse });
+  _konfigCollapsed = true;
+  renderAll(); // Neuer-Auftrag-Button-Zustand und Zusammenfassung aktualisieren
+};
+
+// Ändern-Button Handler — aufklappen, Topf zurücksetzen
+$("btnAendern").onclick = () => {
+  const a = state.auftrag; if(!a) return;
+  _konfigCollapsed = false;
+  _konfigEditTopf  = a.topfgroesse || null;
+  $("konfigCollapsed").style.display = "none";
+  $("konfigExpanded").style.display  = "block";
+  renderKulturChips(a);
+  updateKulturTopfUI(a);
+  renderTopfChips(a);
+};
+
+$("kulturFrei").addEventListener("input", () => {
+  if(!state.auftrag) return;
+  state.auftrag.kultur_frei = $("kulturFrei").value;
+  TMSync.queueAuftragUpdate({ auftrag_id: state.auftrag.id, kultur_frei: state.auftrag.kultur_frei });
+});
+
+// Produzierte Menge manuell eintragen; Leeren ist gegen versehentliches Loeschen geschuetzt.
+$("gesamtStueck").addEventListener("keydown", ev => {
+  if(ev.key === "Enter" || ev.key === "Done"){ ev.preventDefault(); $("gesamtStueck").blur(); }
+  // Nur Ziffern und Steuerkeys zulassen
+  if(!ev.ctrlKey && !ev.metaKey && !["Backspace","Delete","Tab","ArrowLeft","ArrowRight","Home","End"].includes(ev.key)){
+    if(!/^\d$/.test(ev.key)) ev.preventDefault();
+  }
+});
+$("gesamtStueck").addEventListener("input", () => {
+  if(!state.auftrag) return;
+  const el = $("gesamtStueck");
+  const val = el.value;
+  if(val === "" && _lastGesamtValue !== ""){
+    if(!confirm("Produzierte Menge wirklich leeren?")){
+      el.value = _lastGesamtValue;
+      return;
+    }
+  }
+  const n = val === "" ? null : parseInt(val, 10);
+  state.auftrag.gesamtstueck = n;
+  _lastGesamtValue = val;
+  TMSync.queueAuftragUpdate({ auftrag_id: state.auftrag.id, gesamtstueck: n });
+  $("statStueck").textContent = n !== null ? n : "—";
+  updateNeuerAuftragBtn(); // Button sofort ohne renderAll() aktualisieren
+});
+
+function renderMaList(a, closed){
+  // Nicht neu bauen solange User einen Zeit-Input bearbeitet (Fokus-Schutz)
+  const focused = document.activeElement;
+  if(focused && $("malistRows") && $("malistRows").contains(focused) &&
+     (focused.classList.contains("t-start") || focused.classList.contains("t-ende") ||
+      focused.classList.contains("t-pause"))){
+    return;
+  }
+  const malist = (a.mitarbeiter || []);
+  $("malistRows").innerHTML = "";
+  if(!malist.length){
+    $("malistRows").innerHTML = `<div style="color:var(--ink-soft);padding:16px;text-align:center">Noch keine Mitarbeiter erfasst.</div>`;
+    return;
+  }
+  // Aufsicht zuerst, dann Service
+  const sorted = [...malist].sort((x,y) => {
+    if(x.rolle === "aufsicht" && y.rolle !== "aufsicht") return -1;
+    if(y.rolle === "aufsicht" && x.rolle !== "aufsicht") return  1;
+    return 0;
+  });
+  sorted.forEach(m => {
+    const row = document.createElement("div");
+    const abgemeldet = !!m.ende;
+    // Rosa: nur bei abgeschlossenem Auftrag wenn Start oder Ende fehlt
+    const missingStart = !m.start && closed;
+    const missingEnde  = !m.ende && closed;
+    const incomplete   = missingStart || missingEnde;
+    row.className = "ma-row"
+      + (abgemeldet ? " abgemeldet" : "")
+      + (m.rolle === "aufsicht" ? " aufsicht-row" : "")
+      + (incomplete ? " incomplete" : "");
+    if(incomplete) row.title = missingStart ? "Startzeit fehlt" : "Endzeit fehlt (Auftrag abgeschlossen)";
+    row.dataset.mzid = m.id;
+
+    const rolleHtml = m.rolle === "aufsicht"
+      ? `<span class="ma-rolle rolle-aufsicht">AUFSICHT</span>`
+      : `<span class="ma-rolle rolle-service">Service</span>`;
+
+    const pauseLocked = closed && !isAdmin();
+    const pauseButtons = [0, 0.25, 0.5, 0.75].map(v =>
+      `<button class="pause-btn${(m.pause||0) === v ? " on" : ""}" data-v="${v}" ${pauseLocked ? "disabled" : ""}>${v === 0 ? "0" : v.toString().replace(".", ",")}</button>`
+    ).join("");
+
+    row.innerHTML = `
+      <span class="ma-pnr">${esc(m.pnr)}</span>
+      ${rolleHtml}
+      <div class="ma-time">
+        <input type="time" class="t-start" value="${m.start||""}" title="Startzeit" ${(closed && !isAdmin()) ? "disabled" : ""}>
+        <span class="sep">–</span>
+        <input type="time" class="t-ende" value="${m.ende||""}" title="Endzeit" ${(closed && !isAdmin()) ? "disabled" : ""}>
+      </div>
+      <div class="ma-pause">
+        <span style="font-size:.72rem;color:var(--ink-soft);margin-right:4px">Pause</span>
+        <div class="pause-seg">${pauseButtons}</div>
+      </div>
+      <span class="ma-spacer"></span>
+      <button class="btn-abmelden${abgemeldet ? " off" : ""}" ${(abgemeldet || (closed && !isAdmin())) ? "disabled" : ""}>
+        ${abgemeldet ? "✓ abgemeldet" : "Abmelden"}
+      </button>
+      ${isAdmin() ? `<button class="btn-del-ma" title="Mitarbeiter löschen">✕</button>` : ""}
+    `;
+
+    // Start-Zeit
+    row.querySelector(".t-start").addEventListener("change", ev => {
+      m.start = ev.target.value;
+      m.pause = calcAutoPause(m.start, m.ende);
+      updatePauseSeg(row, m.pause);
+      queueWorkerUpdate(m, a);
+    });
+
+    // Ende-Zeit
+    row.querySelector(".t-ende").addEventListener("change", ev => {
+      m.ende = ev.target.value;
+      m.pause = calcAutoPause(m.start, m.ende);
+      updatePauseSeg(row, m.pause);
+      queueWorkerUpdate(m, a);
+      // Automatische Endzeit für alle wenn letzte Aufsicht sich abmeldet
+      renderAll();
+    });
+
+    // Pause-Buttons
+    row.querySelectorAll(".pause-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if(closed && !isAdmin()) return; // abgeschlossener Auftrag – nur Admin
+        m.pause = parseFloat(btn.dataset.v);
+        updatePauseSeg(row, m.pause);
+        queueWorkerUpdate(m, a);
+      });
+    });
+
+    // Abmelden-Button
+    const btnAbm = row.querySelector(".btn-abmelden");
+    if(btnAbm && !abgemeldet && !(closed && !isAdmin())){
+      btnAbm.addEventListener("click", () => {
+        m.ende = nowHM();
+        m.pause = calcAutoPause(m.start, m.ende);
+        queueWorkerUpdate(m, a);
+        renderAll();
+        toast(`${m.pnr} abgemeldet`);
+      });
+    }
+
+    // Löschen (Admin) – gleiche Logik wie Halle 1
+    const btnDel = row.querySelector(".btn-del-ma");
+    if(btnDel){
+      btnDel.addEventListener("click", async () => {
+        if(!isAdmin()){ toast("Nur im Admin-Modus möglich", true); return; }
+        if(!confirm(`PNR ${m.pnr} aus dem Auftrag löschen?`)) return;
+        TMSync.queueWorkerDelete({ pw: _adminPw, mz_id: m.id, auftrag_id: a.id });
+        a.mitarbeiter = a.mitarbeiter.filter(x => x.id !== m.id);
+        renderAll();
+        toast(`PNR ${m.pnr} gelöscht`);
+      });
+    }
+
+    $("malistRows").appendChild(row);
+  });
+}
+
+function updatePauseSeg(row, val){
+  row.querySelectorAll(".pause-btn").forEach(b => b.classList.toggle("on", parseFloat(b.dataset.v) === val));
+}
+
+function queueWorkerUpdate(m, a){
+  TMSync.queueWorkerUpdate({
+    mz_id:      m.id,
+    auftrag_id: a.id,
+    start:      m.start,
+    ende:       m.ende,
+    pause:      m.pause,
+    rolle:      m.rolle,
+    updated_ms: Date.now(),
+  });
+}
+
+/* Wenn Aufsicht sich abmeldet: prüfen ob noch andere aktive Aufsichten vorhanden.
+   Falls nein: Endzeit der Aufsicht auf alle Mitarbeiter ohne eigene Endzeit übertragen. */
+function checkAufsichtEnde(aufsichtMa, a){
+  if(!aufsichtMa.ende) return;
+  const andereAktiveAufsicht = (a.mitarbeiter || []).some(m =>
+    m.rolle === "aufsicht" && m.id !== aufsichtMa.id && !m.ende
+  );
+  if(andereAktiveAufsicht) return; // Noch eine Aufsicht aktiv → nichts tun
+  // Alle noch aktiven Mitarbeiter bekommen die Endzeit der Aufsicht
+  let count = 0;
+  (a.mitarbeiter || []).forEach(m => {
+    if(!m.ende && m.id !== aufsichtMa.id){
+      m.ende  = aufsichtMa.ende;
+      m.pause = calcAutoPause(m.start, m.ende);
+      queueWorkerUpdate(m, a);
+      count++;
+    }
+  });
+  if(count > 0) toast(`Endzeit ${aufsichtMa.ende} auf ${count} Mitarbeiter übertragen`);
+}
+
+/* ── Scan-Logik ────────────────────────────────────────────────────────── */
+function isServicePnrValid(){ const n = parseInt(state.aufsichtPnr, 10); return !isNaN(n) && n >= PNR_MIN && n <= PNR_MAX; }
+
+async function handleServicePnr(pnrStr){
+  const a = state.auftrag;
+  const now = nowHM();
+  if(!a){
+    // Neuen Auftrag anlegen + Aufsicht eintragen
+    const auftragId = TMSync.newOpId();
+    const mzId      = TMSync.newOpId();
+    const newAuftrag = {
+      id: auftragId, datum: state.datumISO, auftrag_start: now,
+      arbeit: "", kultur: null, kultur_frei: "", topfgroesse: "", sonst: "",
+    };
+    state.auftrag = {
+      ...newAuftrag, auftragsnr: "TM-…", status: "offen",
+      auftrag_ende: "", gesamtstueck: null,
+      mitarbeiter: [{
+        id: mzId, auftrag_id: auftragId, pnr: pnrStr,
+        rolle: "aufsicht", start: now, ende: "", pause: 0,
+      }],
+    };
+    TMSync.queueAuftragNew({ id: auftragId, datum: state.datumISO, auftrag_start: now });
+    TMSync.queueScan({ auftrag_id: auftragId, mz_id: mzId, pnr: pnrStr, rolle: "aufsicht", start: now, updated_ms: Date.now() });
+    _konfigCollapsed = false; // neuer Auftrag → Kultur/Topf-Section expandiert starten
+    upsertAuftragInList(state.auftrag); // sofort in Tab-Liste eintragen
+    state.selectedAuftragId = auftragId;
+    renderAll();
+    // Auftrag vom Server nachladen um korrekte Auftragsnummer zu erhalten
+    setTimeout(() => loadAndMerge(), 3500);
+    tonOk(); toast(`Aufsicht ${pnrStr} – Auftrag gestartet`);
+  } else {
+    // Auftrag läuft → zweite Aufsicht hinzufügen (falls noch nicht vorhanden)
+    const existing = (a.mitarbeiter || []).find(m => m.pnr === pnrStr && m.rolle === "aufsicht");
+    if(existing){ toast(`Aufsicht ${pnrStr} bereits erfasst`, true); return; }
+    const mzId = TMSync.newOpId();
+    const start = calcWorkerStart(a, now);
+    a.mitarbeiter.push({ id: mzId, auftrag_id: a.id, pnr: pnrStr, rolle: "aufsicht", start, ende: "", pause: 0 });
+    TMSync.queueScan({ auftrag_id: a.id, mz_id: mzId, pnr: pnrStr, rolle: "aufsicht", start, updated_ms: Date.now() });
+    renderAll();
+    tonOk(); toast(`Aufsicht ${pnrStr} hinzugefügt`);
+  }
+}
+
+function handleScanPnr(pnrStr){
+  const a = state.auftrag;
+  if(!a){ toast("Erst Aufsicht erfassen", true); return; }
+  if(a.status === "abgeschlossen" && !isAdmin()){ toast("Auftrag abgeschlossen", true); return; }
+
+  // Duplikat-Prüfung: aktiver Eintrag mit gleicher PNR ohne Endzeit
+  const active = (a.mitarbeiter || []).find(m => m.pnr === pnrStr && !m.ende);
+  if(active){
+    // Nach RELOCK_MIN kann die PNR erneut gescannt werden (neue Schicht)
+    const ageMin = (Date.now() - (active._created || 0)) / 60000;
+    if(ageMin < RELOCK_MIN){ toast(`PNR ${pnrStr} bereits aktiv – gesperrt`, true); return; }
+  }
+
+  const now   = nowHM();
+  const start = calcWorkerStart(a, now);
+  const mzId  = TMSync.newOpId();
+  const entry = { id: mzId, auftrag_id: a.id, pnr: pnrStr, rolle: "service", start, ende: "", pause: 0, _created: Date.now() };
+  a.mitarbeiter.push(entry);
+  TMSync.queueScan({ auftrag_id: a.id, mz_id: mzId, pnr: pnrStr, rolle: "service", start, updated_ms: Date.now() });
+  renderAll();
+  tonOk();
+  toast(`PNR ${pnrStr} erfasst – Start ${start}`);
+}
+
+function handleInput(raw){
+  const s = String(raw).trim().toUpperCase();
+  const pm = s.match(/^P(\d{4,5})$/);
+  if(!pm){ toast(`Personalnr. P${PNR_MIN}–P${PNR_MAX}`, true); return; }
+  const pnr = String(parseInt(pm[1], 10));
+  if(parseInt(pnr) < PNR_MIN || parseInt(pnr) > PNR_MAX){ toast(`Personalnr. P${PNR_MIN}–P${PNR_MAX}`, true); return; }
+  if(!state.auftrag){
+    // Kein aktiver Auftrag: gescannte PNR wie eine manuelle Eingabe im
+    // Aufsicht-Feld behandeln und damit den Auftrag starten. Vorher wurde
+    // hier "Erst Aufsicht erfassen" gemeldet und der Scan verworfen – Kamera-
+    // und Hardware-Scanner konnten die Aufsicht-PNR dadurch nicht erfassen.
+    state.aufsichtPnr = pnr;
+    $("fService").value = "P" + pnr;
+    sessionStorage.setItem("tm_aufsicht", "P" + pnr);
+    handleServicePnr(pnr);
+    $("iPnr").focus();
+    return;
+  }
+  handleScanPnr(pnr);
+}
+
+// Scanner-Eingabe (iPnr-Feld)
+$("iPnr").addEventListener("keydown", ev => {
+  if(ev.key === "Enter"){
+    ev.preventDefault();
+    const v = $("iPnr").value; $("iPnr").value = "";
+    if(v.trim()) handleInput(v.trim());
+  }
+});
+
+// Hardware-Scanner globaler Listener (auch wenn Fokus in anderen Feldern)
+const SCAN_GAP = 50;
+let scanBuf = "", scanLast = 0, scanField = null, scanFieldVal = "";
+document.addEventListener("keydown", ev => {
+  _audioWake(); // Audio-Kontext bei jedem Tastendruck aufwecken (Scanner)
+  if(ev.target.id === "iPnr" || ev.target.id === "fService") return;
+  if(ev.target.type === "password") return;
+  const tag = (ev.target.tagName||"").toLowerCase();
+  const inField = tag === "input" || tag === "textarea";
+  const now = Date.now();
+  if(now - scanLast > SCAN_GAP){ scanBuf = ""; scanField = null; }
+  scanLast = now;
+  if((ev.key >= "0" && ev.key <= "9") || ev.key === "P" || ev.key === "p"){
+    if(scanBuf === ""){ scanField = inField ? ev.target : null; scanFieldVal = inField ? ev.target.value : ""; }
+    else if(scanField) ev.preventDefault();
+    scanBuf += ev.key.toUpperCase();
+  } else if(ev.key === "Enter"){
+    if(scanBuf){
+      ev.preventDefault();
+      if(scanField){ scanField.value = scanFieldVal; scanField.dispatchEvent(new Event("change",{bubbles:true})); }
+      const code = scanBuf; scanBuf = ""; scanField = null;
+      handleInput(code);
+    }
+  } else { scanBuf = ""; scanField = null; }
+});
+
+/* ── Service-PNR-Feld (Aufsicht) ────────────────────────────────────── */
+$("fService").addEventListener("input", () => {
+  let v = $("fService").value.toUpperCase().replace(/[^P\d]/g,"");
+  if(v.length > 1 && v[0] !== "P") v = v.replace(/\D/g,"");
+  if(v.length > 6) v = v.slice(0,6);
+  $("fService").value = v;
+  const m = v.match(/^P(\d{1,5})$/);
+  state.aufsichtPnr = m ? m[1] : "";
+  // Nur vollständige PNR speichern (P + 4–5 Ziffern), unvollständige löschen
+  if(/^P\d{4,5}$/i.test(v)) sessionStorage.setItem("tm_aufsicht", v);
+  else sessionStorage.removeItem("tm_aufsicht");
+  renderAll();
+});
+$("fService").addEventListener("keydown", ev => {
+  if(ev.ctrlKey || ev.metaKey || ["Backspace","Delete","Tab","ArrowLeft","ArrowRight","Home","End"].includes(ev.key)) return;
+  if(ev.key === "Enter"){
+    ev.preventDefault();
+    const n = parseInt(state.aufsichtPnr, 10);
+    if(isNaN(n) || n < PNR_MIN || n > PNR_MAX){ toast("Aufsicht-PNR ungültig – P1001–P99999", true); return; }
+    handleServicePnr(String(n));
+    $("iPnr").focus();
+    return;
+  }
+  if(!/^[Pp\d]$/.test(ev.key)) ev.preventDefault();
+});
+
+/* ── Kamera-Scanner ──────────────────────────────────────────────────── */
+(function(){
+  const btn=$("btnCam"), overlay=$("camOverlay"), video=$("camVideo"),
+        closeBtn=$("camClose"), hint=$("camHint");
+  if(!btn) return;
+  let stream=null, rafId=null, scanning=false, lastFire=0;
+  const hasGUM = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  async function openCam(){
+    if(!hasGUM){ toast("Kamera nur über HTTPS", true); return; }
+    try{ stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false}); }
+    catch(e){ toast("Kamerazugriff verweigert", true); return; }
+    video.srcObject = stream; try{ await video.play(); }catch(e){}
+    hint.textContent = "Barcode in den Rahmen halten …";
+    overlay.classList.add("show"); startDecode();
+  }
+  function closeCam(){
+    scanning=false; if(rafId){cancelAnimationFrame(rafId);rafId=null;}
+    if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+    video.srcObject=null; overlay.classList.remove("show");
+  }
+  function onCode(raw){ const now=Date.now(); if(!raw||now-lastFire<1200) return; lastFire=now; closeCam(); handleInput(raw); }
+  async function startDecode(){
+    scanning=true;
+    if("BarcodeDetector" in window){
+      try{
+        const detector=new window.BarcodeDetector({formats:["code_128"]});
+        const loop=async()=>{ if(!scanning) return; try{ const c=await detector.detect(video); if(c&&c.length){onCode(c[0].rawValue);return;} }catch(e){} rafId=requestAnimationFrame(loop); };
+        rafId=requestAnimationFrame(loop); return;
+      }catch(e){}
+    }
+    hint.textContent="Kein Barcode-Decoder – bitte Chrome aktualisieren.";
+  }
+  btn.addEventListener("click", openCam);
+  closeBtn.addEventListener("click", closeCam);
+  overlay.addEventListener("click", ev=>{ if(ev.target===overlay) closeCam(); });
+  document.addEventListener("keydown", ev=>{ if(ev.key==="Escape"&&overlay.classList.contains("show")) closeCam(); });
+})();
+
+/* ── Neue-Kultur-Modal ───────────────────────────────────────────────── */
+let _nkKultur = null, _nkKulturFrei = "", _nkTopf = "", _nkTransferIds = new Set(), _nkEnde = "", _nkStueck = null;
+
+function openNeueKulturModal(){
+  const a = state.auftrag; if(!a) return;
+  const freiIdx = KULTUREN.length + 1;
+  // Endzeit vorbelegen
+  $("nkEnde").value = nowHM();
+  // Gesamtstück vorbelegen
+  const gsInp = $("gesamtStueck");
+  const gsIv  = gsInp ? parseInt(gsInp.value, 10) : NaN;
+  const gsAv  = a.gesamtstueck;
+  $("nkStueck").value = (!isNaN(gsIv) && gsIv >= 0) ? gsIv
+                      : (gsAv !== null && gsAv !== undefined ? gsAv : "");
+  // Laufenden Auftrag anzeigen
+  const kulName = a.kultur === freiIdx ? (a.kultur_frei || "Freitext")
+                : (a.kultur && a.kultur >= 1 && a.kultur <= KULTUREN.length ? KULTUREN[a.kultur - 1] : "—");
+  const topfName = a.topfgroesse || "—";
+  const info = $("nkCurrentInfo");
+  if(info) info.innerHTML = `<b>Laufender Auftrag:</b> ${esc(kulName)} &nbsp;·&nbsp; ${esc(topfName)}`;
+  $("nkStueck").addEventListener("keydown", ev => {
+  if(ev.key === "Enter"){ ev.preventDefault(); $("nkStueck").blur(); }
+  if(!ev.ctrlKey && !ev.metaKey && !["Backspace","Delete","Tab","ArrowLeft","ArrowRight","Home","End"].includes(ev.key)){
+    if(!/^\d$/.test(ev.key)) ev.preventDefault();
+  }
+});
+$("nkStueck").oninput = updateNkStep1Ok;
+  updateNkStep1Ok();
+  $("nkModal").classList.add("show");
+  setTimeout(() => $("nkStueck").focus(), 80);
+}
+
+function openNkStep2Modal(a){
+  const freiIdx = KULTUREN.length + 1;
+  _nkKultur = null; _nkKulturFrei = ""; _nkTopf = "";
+  // Wenn Auftrag bereits abgeschlossen (Pause-Flow): Werte aus Auftrag übernehmen
+  // und ALLE Mitarbeiter zur Übernahme anbieten (haben alle eine Endzeit bekommen)
+  const fromClosed = a.status === "abgeschlossen";
+  if(fromClosed){
+    _nkEnde   = a.auftrag_ende || nowHM();
+    _nkStueck = (a.gesamtstueck !== null && a.gesamtstueck !== undefined) ? a.gesamtstueck : 0;
+  }
+  // Pause-Flow: nur MA übernehmen, deren Ende = auftrag_ende (vom paModal gesetzt), nicht Frühabgänger
+  const pauseEnde = fromClosed ? (a.auftrag_ende || null) : null;
+  _nkTransferIds = new Set((a.mitarbeiter||[]).filter(m => pauseEnde ? m.ende === pauseEnde : !m.ende).map(m => m.id));
+  renderNkTransferList(a, pauseEnde);
+  $("nkTopfSection").style.display = "none";
+  if($("nkKulHeader")) $("nkKulHeader").textContent = `KULTUR — EINZELAUSWAHL, ${freiIdx} = FREITEXT`;
+  buildModalChips("nkKulturChips", KULTUREN, null, "kul", v => {
+    _nkKultur = v;
+    $("nkKulturFrei").classList.toggle("show", v !== null && v === freiIdx);
+    $("nkTopfSection").style.display = (v !== null) ? "block" : "none";
+    if(v === null){ _nkTopf = ""; buildModalChips("nkTopfChips", TOPFGROESSEN, null, "topf", tv => { _nkTopf = tv === null ? "" : TOPFGROESSEN[tv-1]; updateNkOk(); }); }
+    updateNkOk();
+  }, true);
+  buildModalChips("nkTopfChips", TOPFGROESSEN, null, "topf", v => { _nkTopf = v === null ? "" : TOPFGROESSEN[v-1]; updateNkOk(); });
+  $("nkKulturFrei").value = "";
+  $("nkKulturFrei").classList.remove("show");
+  $("nkKulturFrei").oninput = () => { _nkKulturFrei = $("nkKulturFrei").value; updateNkOk(); };
+  updateNkOk();
+  $("nkStep2Modal").classList.add("show");
+}
+
+function renderNkTransferList(a, pauseEnde){
+  const c = $("nkTransferList"); if(!c) return;
+  // pauseEnde = Pause-Flow (Endzeit aus paModal), null = normaler Flow (!m.ende)
+  const active = (a.mitarbeiter||[]).filter(m => pauseEnde ? m.ende === pauseEnde : !m.ende);
+  if(!active.length){ c.innerHTML = `<div style="color:var(--ink-soft)">Keine aktiven Mitarbeiter zur Übernahme.</div>`; return; }
+  c.innerHTML = active.map(m => `
+    <label style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--paper-line);border-radius:7px;padding:7px 9px;">
+      <input type="checkbox" data-transfer-id="${m.id}" ${_nkTransferIds.has(m.id) ? "checked" : ""}>
+      <b>${m.pnr}</b><span style="color:var(--ink-soft)">${m.rolle === "aufsicht" ? "Aufsicht" : "Service"}</span>
+    </label>`).join("");
+  c.querySelectorAll("[data-transfer-id]").forEach(inp => {
+    inp.addEventListener("change", () => {
+      if(inp.checked) _nkTransferIds.add(inp.dataset.transferId);
+      else _nkTransferIds.delete(inp.dataset.transferId);
+    });
+  });
+}
+
+function buildModalChips(containerId, items, current, cls, onSelect, addFreitext){
+  const c = $(containerId); c.innerHTML = "";
+  let sel = null;
+  items.forEach((label, i) => {
+    const idx = i + 1;
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip " + cls;
+    if(cls === "kul") b.innerHTML = `<span class="kul-num">${idx}</span>${label}`;
+    else b.textContent = label;
+    b.onclick = () => {
+      sel = (sel === idx ? null : idx);
+      c.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+      if(sel !== null) b.classList.add("on");
+      onSelect(sel);
+    };
+    c.appendChild(b);
+  });
+  if(addFreitext){
+    const freiIdx = KULTUREN.length + 1;
+    const bf = document.createElement("button");
+    bf.type = "button"; bf.className = "chip kul";
+    bf.innerHTML = `<span class="kul-num">${freiIdx}</span>Freitext`;
+    bf.onclick = () => {
+      sel = (sel === freiIdx ? null : freiIdx);
+      c.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+      if(sel !== null) bf.classList.add("on");
+      onSelect(sel);
+    };
+    c.appendChild(bf);
+  }
+}
+/* ── Schritt-1-Validierung: Gesamtstück muss gesetzt sein ───────────────── */
+function updateNkStep1Ok(){
+  const stueck   = parseInt($("nkStueck").value, 10);
+  const stueckOk = !isNaN(stueck) && stueck >= 0;
+  $("nkStep1Ok").disabled = !stueckOk;
+}
+
+/* ── Schritt-2-Validierung: Kultur + Topf müssen neu gewählt werden ─────── */
+function updateNkOk(){
+  const ok = _nkKultur !== null && _nkTopf !== "";
+  $("nkOk").disabled = !ok;
+  const hints = [];
+  if(_nkKultur === null) hints.push("Kultur");
+  if(_nkTopf === "")     hints.push("Topfgröße");
+  const h = $("nkValidHint");
+  if(h){
+    if(hints.length){ h.textContent = "Noch ausstehend: " + hints.join(", "); h.style.display = "block"; }
+    else             { h.style.display = "none"; }
+  }
+}
+
+/* ── Auftrag-Abschließen-Modal (Pause) ────────────────────────────────── */
+function openPaModal(){
+  const a = state.auftrag; if(!a) return;
+  const freiIdx = KULTUREN.length + 1;
+  $("paEnde").value = nowHM();
+  const gsInp = $("gesamtStueck");
+  const gsIv  = gsInp ? parseInt(gsInp.value, 10) : NaN;
+  const gsAv  = a.gesamtstueck;
+  $("paStueck").value = (!isNaN(gsIv) && gsIv >= 0) ? gsIv
+                      : (gsAv !== null && gsAv !== undefined ? gsAv : "");
+  const kulName  = a.kultur === freiIdx ? (a.kultur_frei || "Freitext")
+                 : (a.kultur && a.kultur >= 1 && a.kultur <= KULTUREN.length ? KULTUREN[a.kultur - 1] : "—");
+  const topfName = a.topfgroesse || "—";
+  const info = $("paCurrentInfo");
+  if(info) info.innerHTML = `<b>Laufender Auftrag:</b> ${esc(kulName)} &nbsp;·&nbsp; ${esc(topfName)}`;
+  $("paStueck").addEventListener("keydown", ev => {
+  if(ev.key === "Enter"){ ev.preventDefault(); $("paStueck").blur(); }
+  if(!ev.ctrlKey && !ev.metaKey && !["Backspace","Delete","Tab","ArrowLeft","ArrowRight","Home","End"].includes(ev.key)){
+    if(!/^\d$/.test(ev.key)) ev.preventDefault();
+  }
+});
+$("paStueck").oninput = updatePaOk;
+  updatePaOk();
+  $("paModal").classList.add("show");
+  setTimeout(() => $("paStueck").focus(), 80);
+}
+function updatePaOk(){
+  const v = parseInt($("paStueck").value, 10);
+  $("paOk").disabled = isNaN(v) || v < 0;
+}
+$("paClose").onclick  = () => $("paModal").classList.remove("show");
+$("paCancel").onclick = () => $("paModal").classList.remove("show");
+$("paOk").onclick = () => {
+  const a = state.auftrag; if(!a) return;
+  const ende   = $("paEnde").value || nowHM();
+  const stueck = parseInt($("paStueck").value, 10);
+  if(isNaN(stueck) || stueck < 0){ toast("Gesamtstückzahl eingeben", true); return; }
+  if(a.kultur === null || a.kultur === undefined){ toast("Kultur muss eingetragen sein", true); return; }
+  if(!a.topfgroesse){ toast("Topfgröße muss eingetragen sein", true); return; }
+  // Endzeiten für alle ohne Ende setzen
+  (a.mitarbeiter||[]).forEach(m => {
+    if(!m.ende){
+      m.ende  = ende;
+      m.pause = calcAutoPause(m.start, m.ende);
+      queueWorkerUpdate(m, a);
+    }
+  });
+  TMSync.queueAuftragClose({ auftrag_id: a.id, auftrag_ende: ende, gesamtstueck: stueck, pw: _adminPw || "" });
+  a.auftrag_ende = ende; a.gesamtstueck = stueck; a.status = "abgeschlossen";
+  upsertAuftragInList(a);
+  $("paModal").classList.remove("show");
+  renderAll();
+  toast("Auftrag abgeschlossen ✓ – kein Nachfolgeauftrag");
+  setTimeout(() => loadAndMerge(), 3500);
+};
+$("btnAuftragAbschliessen").onclick = () => {
+  const a = state.auftrag; if(!a) return;
+  const inputEl  = $("gesamtStueck");
+  const inputVal = inputEl ? parseInt(inputEl.value, 10) : NaN;
+  if(!isNaN(inputVal) && inputVal >= 0 && a.gesamtstueck !== inputVal){
+    a.gesamtstueck = inputVal;
+    TMSync.queueAuftragUpdate({ auftrag_id: a.id, gesamtstueck: inputVal });
+  }
+  openPaModal();
+};
+
+/* ── Neue-Kultur-Modal: Schließen ─────────────────────────────────────── */
+$("nkClose").onclick       = () => $("nkModal").classList.remove("show");
+$("nkCancel").onclick      = () => $("nkModal").classList.remove("show");
+$("nkStep2Close").onclick  = () => $("nkStep2Modal").classList.remove("show");
+$("nkStep2Cancel").onclick = () => $("nkStep2Modal").classList.remove("show");
+
+/* ── Schritt 1: Auftrag abschließen → Schritt 2 öffnen ─────────────────── */
+$("nkStep1Ok").onclick = () => {
+  const a = state.auftrag; if(!a) return;
+  _nkEnde   = $("nkEnde").value || nowHM();
+  _nkStueck = parseInt($("nkStueck").value, 10);
+  $("nkModal").classList.remove("show");
+  openNkStep2Modal(a);
+};
+
+/* ── Schritt 2: Neue Kultur anlegen ────────────────────────────────────── */
+$("nkOk").onclick = () => {
+  const a = state.auftrag; if(!a) return;
+  const newId    = TMSync.newOpId();
+  const newStart = _nkEnde || nowHM();
+
+  /* ── Pause-Flow: Alter Auftrag bereits abgeschlossen ──────────────────
+     queueNeueKultur würde HTTP 400 liefern (Server lehnt abgeschlossene
+     Aufträge ab). Stattdessen: direkt neuen Auftrag anlegen + Mitarbeiter
+     per queueScan eintragen, alter Auftrag bleibt unverändert.           */
+  if(a.status === "abgeschlossen"){
+    TMSync.queueAuftragNew({ id: newId, datum: state.datumISO, auftrag_start: newStart });
+    if(_nkKultur !== null || _nkKulturFrei || _nkTopf)
+      TMSync.queueAuftragUpdate({ auftrag_id: newId, kultur: _nkKultur, kultur_frei: _nkKulturFrei, topfgroesse: _nkTopf });
+    const transferred = [];
+    _nkTransferIds.forEach(mid => {
+      const m = (a.mitarbeiter||[]).find(x => x.id === mid); if(!m) return;
+      const newMzId = TMSync.newOpId();
+      const newWorker = { id: newMzId, auftrag_id: newId, pnr: m.pnr, rolle: m.rolle, start: newStart, ende: "", pause: 0, _created: Date.now() };
+      transferred.push(newWorker);
+      TMSync.queueScan({ auftrag_id: newId, mz_id: newMzId, pnr: m.pnr, rolle: m.rolle, start: newStart, updated_ms: Date.now() });
+    });
+    state.auftrag = {
+      id: newId, auftragsnr: "TM-…", datum: state.datumISO,
+      auftrag_start: newStart, auftrag_ende: "", status: "offen",
+      arbeit: "", kultur: _nkKultur, kultur_frei: _nkKulturFrei,
+      topfgroesse: _nkTopf, gesamtstueck: null, sonst: "",
+      mitarbeiter: transferred,
+    };
+    upsertAuftragInList(state.auftrag);
+    state.selectedAuftragId = newId;
+    _konfigCollapsed = false;
+    _konfigEditTopf  = _nkTopf;
+    $("nkStep2Modal").classList.remove("show");
+    renderAll();
+    toast(`Neuer Auftrag gestartet · ${transferred.length} Mitarbeiter übernommen`);
+    setTimeout(() => loadAndMerge(), 3500);
+    return;
+  }
+
+  /* ── Normaler Flow: Alter Auftrag noch offen → queueNeueKultur ──────── */
+  const stueck   = _nkStueck;
+  const ende     = _nkEnde || nowHM();
+  const ohneEnde = new Set((a.mitarbeiter||[]).filter(m => !m.ende).map(m => m.id));
+
+  (a.mitarbeiter||[]).forEach(m => {
+    if(!m.ende){
+      m.ende  = ende;
+      m.pause = calcAutoPause(m.start, m.ende);
+      queueWorkerUpdate(m, a);
+    }
+  });
+
+  TMSync.queueNeueKultur({
+    auftrag_id:        a.id,
+    auftrag_ende:      ende,
+    gesamtstueck:      stueck,
+    new_auftrag_id:    newId,
+    datum:             state.datumISO,
+    new_auftrag_start: ende,
+    arbeit:            "",
+    kultur:            _nkKultur,
+    kultur_frei:       _nkKulturFrei,
+    topfgroesse:       _nkTopf,
+    transfer_mz_ids:   Array.from(_nkTransferIds),
+  });
+
+  a.gesamtstueck = stueck; a.auftrag_ende = ende; a.status = "abgeschlossen";
+  upsertAuftragInList(a);
+
+  const transferred = (a.mitarbeiter||[])
+    .filter(m => ohneEnde.has(m.id) && _nkTransferIds.has(m.id))
+    .map(m => ({ id: TMSync.newOpId(), auftrag_id: newId, pnr: m.pnr, rolle: m.rolle, start: ende, ende: "", pause: 0, _created: Date.now() }));
+
+  state.auftrag = {
+    id: newId, auftragsnr: "TM-…", datum: state.datumISO,
+    auftrag_start: ende, auftrag_ende: "", status: "offen",
+    arbeit: "", kultur: _nkKultur, kultur_frei: _nkKulturFrei,
+    topfgroesse: _nkTopf, gesamtstueck: null, sonst: "",
+    mitarbeiter: transferred,
+  };
+  upsertAuftragInList(state.auftrag);
+  state.selectedAuftragId = newId;
+  _konfigCollapsed = true;
+  _lastAuftragId   = newId;
+  _konfigEditTopf  = _nkTopf;
+  $("nkStep2Modal").classList.remove("show");
+  renderAll();
+  toast(`Neuer Auftrag gestartet · ${transferred.length} Mitarbeiter übernommen`);
+  setTimeout(() => loadAndMerge(), 3500);
+};
+
+/* ── Neuer-Auftrag-Button ─────────────────────────────────────────────── */
+$("btnNeuerAuftrag").onclick = () => {
+  const a = state.auftrag; if(!a) return;
+  // Wenn Auftrag bereits abgeschlossen (nach Pause): Step 1 überspringen, direkt zu Step 2
+  if(a.status === "abgeschlossen"){
+    openNkStep2Modal(a);
+    return;
+  }
+  // Gesamtstück aus Eingabefeld sichern (falls noch nicht persistiert)
+  const inputEl  = $("gesamtStueck");
+  const inputVal = inputEl ? parseInt(inputEl.value, 10) : NaN;
+  if(!isNaN(inputVal) && inputVal >= 0 && a.gesamtstueck !== inputVal){
+    a.gesamtstueck = inputVal;
+    TMSync.queueAuftragUpdate({ auftrag_id: a.id, gesamtstueck: inputVal });
+  }
+  openNeueKulturModal();
+};
+
+// Versteckter Fallback
+if($("btnNeueKultur")) $("btnNeueKultur").onclick = () => { const a=state.auftrag;if(a)openNeueKulturModal(); };
+
+/* ── openNeueKulturModal: Gesamtstück vorbelegen ─────────────────────── */
+// Patch: openNeueKulturModal wurde oben definiert, hier überschreiben wir den nkStueck-Wert
+// Das passiert automatisch durch unsere Änderung im Funktionsrumpf (openNeueKulturModal
+// setzt nkStueck.value = existingGs).
+
+/* ── Schicht-Ende-Modal ───────────────────────────────────────────────── */
+$("sbClose").onclick  = () => $("sbModal").classList.remove("show");
+$("sbCancel").onclick = () => $("sbModal").classList.remove("show");
+
+function checkSbOk(){
+  const a = state.auftrag;
+  // Wenn Auftrag bereits abgeschlossen (nach Pause): nur Tag-Abschluss nötig → immer OK
+  if(a && a.status === "abgeschlossen"){ $("sbOk").disabled = false; const h=$("sbValidHint"); if(h) h.style.display="none"; return; }
+  const endeOk   = !!$("sbEnde").value;
+  const stueckOk = $("sbStueck").value.trim() !== "" && !isNaN(parseInt($("sbStueck").value,10));
+  const kulturOk = a && (a.kultur !== null && a.kultur !== undefined);
+  const topfOk   = a && !!a.topfgroesse;
+  const ok = endeOk && stueckOk && kulturOk && topfOk;
+  $("sbOk").disabled = !ok;
+  // Hinweis-Div befüllen
+  const hint = $("sbValidHint");
+  if(hint){
+    const miss = [];
+    if(!kulturOk) miss.push("Kultur");
+    if(!topfOk)   miss.push("Topfgröße");
+    if(!stueckOk) miss.push("Gesamtstück");
+    if(miss.length){
+      hint.textContent = "Noch ausstehend: " + miss.join(", ") + " — bitte im Auftrag eintragen.";
+      hint.style.display = "block";
+    } else {
+      hint.style.display = "none";
+    }
+  }
+}
+$("sbEnde").addEventListener("input",   checkSbOk);
+$("sbStueck").addEventListener("keydown", ev => {
+  if(ev.key === "Enter"){ ev.preventDefault(); $("sbStueck").blur(); }
+  if(!ev.ctrlKey && !ev.metaKey && !["Backspace","Delete","Tab","ArrowLeft","ArrowRight","Home","End"].includes(ev.key)){
+    if(!/^\d$/.test(ev.key)) ev.preventDefault();
+  }
+});
+$("sbStueck").addEventListener("input", checkSbOk);
+
+// 5-Klick-Bestätigung für Tag abschließen (wenn Auftrag bereits vollständig abgeschlossen)
+let _sbClickCount = 0, _sbClickTimer = null;
+const SB_CLICKS_NEEDED = 5;
+
+$("btnSchichtEnde").onclick = () => {
+  const a = state.auftrag; if(!a) return;
+
+  // Auftrag bereits abgeschlossen + alle Pflichtfelder vorhanden → 5-Klick-Flow
+  const bereitsFertig = a.status === "abgeschlossen"
+    && a.auftrag_ende
+    && (a.gesamtstueck !== null && a.gesamtstueck !== undefined)
+    && (a.kultur !== null && a.kultur !== undefined)
+    && a.topfgroesse;
+
+  if(bereitsFertig){
+    _sbClickCount++;
+    if(_sbClickTimer) clearTimeout(_sbClickTimer);
+    _sbClickTimer = setTimeout(() => {
+      _sbClickCount = 0;
+      $("btnSchichtEnde").textContent = "🔒 Tag abschließen";
+    }, 3000);
+
+    if(_sbClickCount >= SB_CLICKS_NEEDED){
+      _sbClickCount = 0;
+      if(_sbClickTimer) clearTimeout(_sbClickTimer);
+      $("btnSchichtEnde").textContent = "🔒 Tag abschließen";
+      TMSync.queueDayClose({ datum: state.datumISO, pw: _adminPw || "" });
+      state.dayIsClosed = true;
+      renderAll();
+      toast("Tag abgeschlossen ✓");
+      return;
+    }
+
+    const remaining = SB_CLICKS_NEEDED - _sbClickCount;
+    $("btnSchichtEnde").textContent = `🔒 Noch ${remaining}× klicken`;
+    return;
+  }
+
+  // Auftrag noch offen oder Daten fehlen → Modal
+  $("sbEnde").value = nowHM();
+  const inputEl  = $("gesamtStueck");
+  const inputVal = inputEl ? inputEl.value : "";
+  $("sbStueck").value = (a.gesamtstueck !== null && a.gesamtstueck !== undefined)
+    ? a.gesamtstueck
+    : (inputVal || "");
+  checkSbOk();
+  $("sbModal").classList.add("show");
+  setTimeout(() => $("sbStueck").focus(), 60);
+};
+
+$("sbOk").onclick = () => {
+  const a = state.auftrag; if(!a) return;
+  const ende   = $("sbEnde").value || nowHM();
+  const stueck = parseInt($("sbStueck").value, 10);
+
+  // Auftrag nur schließen wenn noch offen (nach Pause ist er bereits abgeschlossen)
+  if(a.status !== "abgeschlossen"){
+    if(isNaN(stueck))           { toast("Gesamtstückzahl eingeben", true); return; }
+    if(!a.kultur && a.kultur !== 0) { toast("Kultur fehlt – bitte im Auftrag eintragen", true); return; }
+    if(!a.topfgroesse)          { toast("Topfgröße fehlt – bitte im Auftrag eintragen", true); return; }
+    // Endzeiten für alle ohne Ende setzen
+    (a.mitarbeiter||[]).forEach(m => {
+      if(!m.ende){
+        m.ende  = ende;
+        m.pause = calcAutoPause(m.start, m.ende);
+        queueWorkerUpdate(m, a);
+      }
+    });
+    TMSync.queueAuftragClose({ auftrag_id: a.id, auftrag_ende: ende, gesamtstueck: stueck, pw: _adminPw || "" });
+    a.auftrag_ende = ende; a.gesamtstueck = stueck; a.status = "abgeschlossen";
+    upsertAuftragInList(a);
+  }
+
+  TMSync.queueDayClose({ datum: state.datumISO, pw: _adminPw || "" });
+  state.dayIsClosed = true;
+  $("sbModal").classList.remove("show");
+  renderAll();
+  toast("Tag abgeschlossen ✓");
+};
+
+/* ── Admin: Auftrag bearbeiten ────────────────────────────────────────── */
+$("editStueck").addEventListener("keydown", ev => {
+  if(ev.key === "Enter"){ ev.preventDefault(); $("editStueck").blur(); }
+  if(!ev.ctrlKey && !ev.metaKey && !["Backspace","Delete","Tab","ArrowLeft","ArrowRight","Home","End"].includes(ev.key)){
+    if(!/^\d$/.test(ev.key)) ev.preventDefault();
+  }
+});
+$("editClose").onclick  = () => $("editModal").classList.remove("show");
+$("editCancel").onclick = () => $("editModal").classList.remove("show");
+
+$("btnEditAuftrag").onclick = async () => {
+  const a = state.auftrag; if(!a) return;
+  if(!isAdmin()){ const ok = await ensureAdmin("Admin erforderlich",""); if(!ok) return; }
+  $("editStart").value  = a.auftrag_start || "";
+  $("editEnde").value   = a.auftrag_ende  || "";
+  $("editStueck").value = (a.gesamtstueck !== null && a.gesamtstueck !== undefined) ? a.gesamtstueck : "";
+  $("editStatus").value = a.status || "offen";
+  $("editSonst").value  = a.sonst  || "";
+
+  const maRows = $("editMaRows"); maRows.innerHTML = "";
+  (a.mitarbeiter||[]).forEach(m => {
+    const d = document.createElement("div");
+    d.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;";
+    d.innerHTML = `
+      <span style="min-width:62px;font-weight:700;font-size:.92rem">${esc(m.pnr)}</span>
+      <span style="font-size:.72rem;color:var(--ink-soft);min-width:52px">${esc(m.rolle)}</span>
+      <label style="font-size:.75rem;color:var(--ink-soft)">Start</label>
+      <input type="time" data-mzid="${m.id}" data-field="start" value="${m.start||""}"
+             style="padding:5px 8px;border:1.5px solid var(--paper-line);border-radius:6px;font-size:.88rem;">
+      <label style="font-size:.75rem;color:var(--ink-soft)">Ende</label>
+      <input type="time" data-mzid="${m.id}" data-field="ende"  value="${m.ende||""}"
+             style="padding:5px 8px;border:1.5px solid var(--paper-line);border-radius:6px;font-size:.88rem;">
+      <label style="font-size:.75rem;color:var(--ink-soft)">Pause</label>
+      <select data-mzid="${m.id}" data-field="pause"
+              style="padding:5px;border:1.5px solid var(--paper-line);border-radius:6px;font-size:.85rem;">
+        <option value="0"   ${(m.pause||0)===0    ?"selected":""}>0 h</option>
+        <option value="0.25"${(m.pause||0)===0.25 ?"selected":""}>¼ h</option>
+        <option value="0.5" ${(m.pause||0)===0.5  ?"selected":""}>½ h</option>
+        <option value="0.75"${(m.pause||0)===0.75 ?"selected":""}>¾ h</option>
+        <option value="1"   ${(m.pause||0)===1    ?"selected":""}>1 h</option>
+      </select>
+    `;
+    maRows.appendChild(d);
+  });
+  $("editModal").classList.add("show");
+};
+
+$("editOk").onclick = async () => {
+  const a = state.auftrag; if(!a) return;
+
+  // MA-Zeiten übernehmen
+  $("editMaRows").querySelectorAll("[data-mzid]").forEach(inp => {
+    const mzid = inp.dataset.mzid, field = inp.dataset.field;
+    const m = (a.mitarbeiter||[]).find(x => x.id === mzid);
+    if(!m) return;
+    const newVal = inp.tagName === "SELECT" ? parseFloat(inp.value) : inp.value;
+    const oldVal = m[field];
+    if(String(newVal) !== String(oldVal ?? "")){
+      m[field] = newVal;
+      if(field !== "pause" && m.start && m.ende) m.pause = calcAutoPause(m.start, m.ende);
+    }
+  });
+  // MA-Updates an Server
+  (a.mitarbeiter||[]).forEach(m => queueWorkerUpdate(m, a));
+
+  // Auftragsdaten direkt via API
+  const editBody = { pw: _adminPw, auftrag_id: a.id };
+  if($("editStart").value)   { editBody.auftrag_start = $("editStart").value; a.auftrag_start = $("editStart").value; }
+  if($("editEnde").value)    { editBody.auftrag_ende  = $("editEnde").value;  a.auftrag_ende  = $("editEnde").value;  }
+  const esv = $("editStueck").value;
+  if(esv !== "")             { editBody.gesamtstueck  = parseInt(esv,10);     a.gesamtstueck  = parseInt(esv,10);     }
+  editBody.status = $("editStatus").value; a.status = $("editStatus").value;
+  editBody.sonst  = $("editSonst").value;  a.sonst  = $("editSonst").value;
+
+  try { await _fetchTimeout("/api/admin/auftrag/edit", { method:"POST",
+    headers:{"Content-Type":"application/json"}, body: JSON.stringify(editBody) }); }
+  catch(e){}
+
+  $("editModal").classList.remove("show");
+  renderAll();
+  toast("Auftrag gespeichert ✓");
+};
+
+/* ── Admin: Auftrag löschen ───────────────────────────────────────────── */
+$("deleteClose").onclick  = () => $("deleteModal").classList.remove("show");
+$("deleteCancel").onclick = () => $("deleteModal").classList.remove("show");
+
+$("deleteConfirmInput").addEventListener("input", () => {
+  const nr  = ($("deleteAuftragNr").textContent||"").trim();
+  $("deleteOk").disabled = $("deleteConfirmInput").value.trim() !== nr;
+});
+
+$("btnDeleteAuftrag").onclick = async () => {
+  const a = state.auftrag; if(!a) return;
+  if(!isAdmin()){ const ok = await ensureAdmin("Admin-Passwort","Zum Löschen Admin-Zugang erforderlich."); if(!ok) return; }
+  $("deleteAuftragNr").textContent   = a.auftragsnr || "—";
+  $("deleteConfirmInput").value = "";
+  $("deleteOk").disabled = true;
+  $("deleteModal").classList.add("show");
+  setTimeout(() => $("deleteConfirmInput").focus(), 80);
+};
+
+$("deleteOk").onclick = async () => {
+  const a = state.auftrag; if(!a) return;
+  $("deleteModal").classList.remove("show");
+  try {
+    const r = await _fetchTimeout("/api/admin/auftrag/delete", { method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ pw: _adminPw, auftrag_id: a.id }) });
+    if(!r.ok){ toast("Löschen fehlgeschlagen", true); return; }
+    state.auftrag = null;
+    state.auftraege = state.auftraege.filter(x => x.id !== a.id);
+    renderAll();
+    toast(`Auftrag ${a.auftragsnr||""} gelöscht`);
+  } catch(e){ toast("Netzwerkfehler", true); }
+};
+
+/* ── Audit-Log ────────────────────────────────────────────────────────── */
+$("auditClose").onclick = () => $("auditModal").classList.remove("show");
+$("auditDone").onclick  = () => $("auditModal").classList.remove("show");
+
+$("btnAuditLog").onclick = async () => {
+  if(!isAdmin()){ toast("Nur im Admin-Modus", true); return; }
+  try {
+    const r    = await _fetchTimeout("/api/audit", { method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ pw: _adminPw, limit: 200 }) });
+    const list = await r.json();
+    const body = $("auditBody");
+    body.innerHTML = "";
+    if (!list.length) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "color:var(--ink-soft);padding:16px";
+      empty.textContent = "Keine Einträge";
+      body.appendChild(empty);
+    } else {
+      list.forEach(e => {
+        const ts  = new Date(e.ts);
+        const dt  = `${String(ts.getDate()).padStart(2,"0")}.${String(ts.getMonth()+1).padStart(2,"0")} `
+                  + `${String(ts.getHours()).padStart(2,"0")}:${String(ts.getMinutes()).padStart(2,"0")}`;
+        const row  = document.createElement("div");
+        row.className = "audit-entry";
+        const bold = document.createElement("b");
+        bold.textContent = dt;
+        const detail = document.createElement("span");
+        detail.style.color = "var(--ink-soft)";
+        detail.textContent = e.detail || "";
+        row.appendChild(bold);
+        row.appendChild(document.createTextNode(` · ${e.aktion||"—"} · ${e.actor||"—"} · `));
+        row.appendChild(detail);
+        body.appendChild(row);
+      });
+    }
+    $("auditModal").classList.add("show");
+  } catch(e){ toast("Fehler beim Laden", true); }
+};
+
+/* ── CSV-Export ───────────────────────────────────────────────────────── */
+$("btnTagWiederOeffnen").onclick = async () => {
+  if(!isAdmin()){ toast("Nur im Admin-Modus", true); return; }
+  if(!confirm("Tag wieder öffnen? Der Tagesabschluss wird aufgehoben.")) return;
+  try {
+    const r = await _fetchTimeout("/api/admin/day/reopen", { method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ datum: state.datumISO, pw: _adminPw || "" }) });
+    if(!r.ok){ const e = await r.json().catch(()=>{}); toast(e?.detail || "Fehler", true); return; }
+    state.dayIsClosed = false;
+    renderAll();
+    toast("Tag wieder geöffnet ✓");
+  } catch(e){ toast("Netzwerkfehler", true); }
+};
+
+$("btnExportCsv").onclick = async () => {
+  if(!isAdmin()){ toast("Nur im Admin-Modus", true); return; }
+  try {
+    const r = await _fetchTimeout("/api/export.csv", { method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ pw: _adminPw, von: state.datumISO, bis: state.datumISO }) }, 30000);
+    if(!r.ok){ toast("Export fehlgeschlagen", true); return; }
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `Topfmaschine_${state.datumISO}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  } catch(e){ toast("Export-Fehler", true); }
+};
+
+/* ── Daten vom Server laden ───────────────────────────────────────────── */
+async function loadAndMerge(){
+  try {
+    const dayOrders = await _fetchTimeout(`/api/auftraege?von=${state.datumISO}&bis=${state.datumISO}`).then(r => r.json());
+    if(Array.isArray(dayOrders)){
+      dayOrders.forEach(serverOrder => {
+        const local = state.auftraege.find(x => x.id === serverOrder.id);
+        if(local){
+          const savedStatus     = local.status;
+          const savedKultur     = local.kultur;
+          const savedKulturFrei = local.kultur_frei;
+          const savedTopf       = local.topfgroesse;
+          const savedEnde       = local.auftrag_ende;
+          const savedStueck     = local.gesamtstueck;
+          const savedMitarbeiter = local.mitarbeiter || [];
+          const workers = serverOrder.mitarbeiter || [];
+          Object.assign(local, serverOrder);
+          // Status nie zurücksetzen: abgeschlossen bleibt abgeschlossen (pending sync)
+          if(savedStatus === "abgeschlossen") local.status = "abgeschlossen";
+          // Lokal gesetzte Werte beibehalten wenn Server sie noch nicht hat (pending sync)
+          if((local.kultur === null || local.kultur === undefined) && savedKultur !== null && savedKultur !== undefined)
+            local.kultur = savedKultur;
+          if(!local.kultur_frei && savedKulturFrei) local.kultur_frei = savedKulturFrei;
+          if(!local.topfgroesse && savedTopf)       local.topfgroesse = savedTopf;
+          if(!local.auftrag_ende && savedEnde)      local.auftrag_ende = savedEnde;
+          if((local.gesamtstueck === null || local.gesamtstueck === undefined) && savedStueck !== null && savedStueck !== undefined)
+            local.gesamtstueck = savedStueck;
+          local.mitarbeiter = savedMitarbeiter;
+          mergeWorkersIntoLocal(local, workers);
+          if(state.auftrag && state.auftrag.id === local.id) state.auftrag = local;
+        } else {
+          upsertAuftragInList(serverOrder);
+        }
+      });
+    }
+    const active = await TMSync.loadActiveAuftrag().catch(() => null);
+    if(active && active.id){
+      const existing = state.auftraege.find(x => x.id === active.id);
+      if(existing){
+        const savedStatus     = existing.status;
+        const savedKultur     = existing.kultur;
+        const savedKulturFrei = existing.kultur_frei;
+        const savedTopf       = existing.topfgroesse;
+        const savedEnde       = existing.auftrag_ende;
+        const savedStueck     = existing.gesamtstueck;
+        const savedMitarbeiter = existing.mitarbeiter || [];
+        const workers = active.mitarbeiter || [];
+        Object.assign(existing, active);
+        if(savedStatus === "abgeschlossen") existing.status = "abgeschlossen";
+        if((existing.kultur === null || existing.kultur === undefined) && savedKultur !== null && savedKultur !== undefined)
+          existing.kultur = savedKultur;
+        if(!existing.kultur_frei && savedKulturFrei) existing.kultur_frei = savedKulturFrei;
+        if(!existing.topfgroesse && savedTopf)       existing.topfgroesse = savedTopf;
+        if(!existing.auftrag_ende && savedEnde)      existing.auftrag_ende = savedEnde;
+        if((existing.gesamtstueck === null || existing.gesamtstueck === undefined) && savedStueck !== null && savedStueck !== undefined)
+          existing.gesamtstueck = savedStueck;
+        existing.mitarbeiter = savedMitarbeiter;
+        mergeWorkersIntoLocal(existing, workers);
+      } else {
+        upsertAuftragInList(active);
+      }
+      if(!state.selectedAuftragId || !state.auftrag || state.auftrag.status !== "abgeschlossen"){
+        state.auftrag = state.auftraege.find(x => x.id === active.id) || active;
+        state.selectedAuftragId = state.auftrag.id;
+      }
+    } else if(!state.auftrag && state.auftraege.length){
+      state.auftrag = state.auftraege[state.auftraege.length - 1];
+      state.selectedAuftragId = state.auftrag.id;
+    }
+    // Tag-Abschluss-Status vom Server laden
+    try {
+      const ds = await _fetchTimeout(`/api/day/status?datum=${state.datumISO}`).then(r => r.json());
+      if(ds && ds.closed) state.dayIsClosed = true;
+    } catch(e){}
+    // Aufsicht-PNR aus aktivem Auftrag wiederherstellen (geräteübergreifend)
+    if(state.auftrag){
+      const aufsicht = (state.auftrag.mitarbeiter||[]).find(m => m.rolle === "aufsicht" && !m.ende);
+      if(aufsicht && aufsicht.pnr){
+        const pnrStr = "P" + aufsicht.pnr;
+        $("fService").value = pnrStr;
+        state.aufsichtPnr = String(aufsicht.pnr);
+        sessionStorage.setItem("tm_aufsicht", pnrStr);
+      } else if(!$("fService").value.trim() || !/^P\d{4,5}$/i.test($("fService").value.trim())){
+        // Ungültige oder fehlende Aufsicht → Feld und Cache leeren
+        $("fService").value = "";
+        state.aufsichtPnr = "";
+        sessionStorage.removeItem("tm_aufsicht");
+      }
+    } else {
+      // Kein aktiver Auftrag → ungültige PNR aus Feld entfernen
+      const cur = $("fService").value.trim();
+      if(cur && !/^P\d{4,5}$/i.test(cur)){
+        $("fService").value = "";
+        state.aufsichtPnr = "";
+        sessionStorage.removeItem("tm_aufsicht");
+      }
+    }
+    renderAll();
+  } catch(e){ /* offline - State beibehalten */ }
+}
+
+/* ── Init ───────────────────────────────────────────────────────────────────────── */
+async function init(){
+  const now = new Date();
+  state.datumISO = now.getFullYear() + "-" + pad(now.getMonth()+1) + "-" + pad(now.getDate());
+  state.datum    = pad(now.getDate()) + "." + pad(now.getMonth()+1) + "." + now.getFullYear();
+
+  // Aufsicht-PNR aus sessionStorage wiederherstellen (bleibt im Tab, löscht sich beim Schließen)
+  const savedService = sessionStorage.getItem("tm_aufsicht") || "";
+  if(savedService && /^P\d{4,5}$/i.test(savedService)) {
+    $("fService").value = savedService;
+    const _m = savedService.match(/^P(\d{1,5})$/);
+    state.aufsichtPnr = _m ? _m[1] : "";
+  }
+
+  try {
+    const cfg = await _fetchTimeout("/api/config").then(r => r.json());
+    KULTUREN      = cfg.kulturen      || [];
+    ARBEITEN      = cfg.arbeiten      || [];
+    TOPFGROESSEN  = cfg.topfgroessen  || [];
+  } catch(e){}
+
+  await loadAndMerge();
+  TMSync.scheduleSync();
+  TMSync.startPeriodicReload(() => { loadAndMerge(); }, 30000);
+  TMSync.onStatus(n => {
+    $("syncBadge").textContent = n > 0 ? `⧳ ${n} ausstehend` : "● Synchron";
+    $("syncBadge").style.color = n > 0 ? "#f5c542" : "#9fe0a4";
+  });
+  // Sync-Status-Anzeige dient zugleich als manueller "Jetzt synchronisieren"-
+  // Button - nuetzlich als Sofort-Workaround, falls doch einmal ein
+  // haengender Zustand auftritt, ohne dass ein voller Seiten-Reload noetig
+  // ist (siehe sync.js, forceSync()).
+  $("syncBadge").addEventListener("click", () => TMSync.forceSync());
+
+  renderAll();
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# Topfmaschine Mayer – HTTPS-Reverse-Proxy
+# Diesen Block in die bestehende /etc/caddy/Caddyfile einfügen
+# ACHTUNG: NICHT die Halle-1- (8443/8444) oder Stolze-Einträge (8446) verändern
+
+:8447 {
+    reverse_proxy localhost:8084
+    tls internal
+    encode gzip
+    log {
+        output file /var/log/caddy/topfmaschine_mayer.log
+        format json
+    }
+}
