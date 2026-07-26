@@ -14,6 +14,7 @@
   --amber:#c9821f; --amber-soft:#f5e7cf; --amber-dark:#7a4d0c;
   --danger:#a8341f; --danger-soft:#f3ddd6;
   --aufsicht:#6b2fa0; --aufsicht-soft:#ede0f8;
+  --sammel:#1f5f74; --sammel-soft:#dfeef3;
   --radius:10px; --shadow:0 1px 3px rgba(33,37,31,.12),0 4px 14px rgba(33,37,31,.06);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -138,10 +139,18 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
 .ma-row{background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:6px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .ma-row.abgemeldet{opacity:.55;background:#f9f8f5;}
 .ma-row.aufsicht-row{border-left:4px solid var(--aufsicht);background:var(--aufsicht-soft);}
+.ma-row.sammel-row{border-left:4px solid var(--sammel);background:var(--sammel-soft);}
 .ma-pnr{font-size:1.05rem;font-weight:800;font-variant-numeric:tabular-nums;min-width:54px;}
 .ma-rolle{border-radius:999px;padding:3px 10px;font-size:.74rem;font-weight:700;white-space:nowrap;}
 .rolle-aufsicht{background:var(--aufsicht);color:#fff;}
 .rolle-service{background:var(--leaf-light);color:var(--leaf-dark);}
+.rolle-sammel{background:var(--sammel);color:#fff;}
+/* Sammelzeile: Personenzahl mit −/+ direkt in der Zeile korrigierbar */
+.ma-anz{display:flex;align-items:center;gap:0;border:1.5px solid var(--sammel);border-radius:7px;overflow:hidden;background:#fff;}
+.ma-anz button{border:none;background:#fff;color:var(--sammel);font-size:1rem;font-weight:800;width:28px;height:28px;cursor:pointer;line-height:1;}
+.ma-anz button:disabled{color:var(--ink-soft);cursor:not-allowed;}
+.ma-anz .val{min-width:34px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;font-size:.95rem;color:var(--sammel);}
+.ma-row.sammel-row.incomplete{background:#fde8ef !important;border-left:4px solid var(--danger) !important;box-shadow:none !important;}
 .ma-time{display:flex;align-items:center;gap:4px;font-size:.9rem;font-variant-numeric:tabular-nums;}
 .ma-time input[type=time]{border:1px solid var(--paper-line);border-radius:6px;padding:4px 8px;font-size:.88rem;font-weight:600;background:var(--paper);color:var(--ink);width:96px;cursor:text;}
 .ma-row.incomplete{background:#fde8ef !important;box-shadow:inset 4px 0 0 var(--danger) !important;}
@@ -216,6 +225,13 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
 
 /* Kamera */
 .btn-cam{background:#fff;border:2px solid var(--leaf);color:var(--leaf-dark);border-radius:9px;padding:0 16px;font-size:1rem;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;flex-shrink:0;}
+.btn-sammel{background:#fff;border:2px solid var(--sammel);color:var(--sammel);border-radius:9px;padding:0 16px;font-size:1rem;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;flex-shrink:0;}
+.btn-sammel:disabled{border-color:var(--paper-line);color:var(--ink-soft);background:#f0efeb;cursor:not-allowed;}
+/* Anzahl-Stepper in den Modalen (Sammelzeile anlegen / Teil-Abmeldung) */
+.anz-step{display:flex;align-items:center;gap:10px;}
+.anz-step button{border:2px solid var(--sammel);background:#fff;color:var(--sammel);border-radius:9px;width:48px;height:48px;font-size:1.5rem;font-weight:800;cursor:pointer;line-height:1;}
+.anz-step button:disabled{border-color:var(--paper-line);color:var(--ink-soft);cursor:not-allowed;}
+.anz-step input{width:84px;text-align:center;font-size:1.6rem;font-weight:800;font-variant-numeric:tabular-nums;padding:8px;border:2px solid var(--paper-line);border-radius:9px;}
 .cam-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:600;}
 .cam-overlay.show{display:flex;}
 .cam-box{background:#000;border-radius:14px;overflow:hidden;width:min(96vw,520px);}
@@ -260,6 +276,7 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
     <div class="inrow">
       <input id="iPnr" autocomplete="off" placeholder="Personalnr. P1001–P99999" inputmode="text" enterkeyhint="done" autocapitalize="characters" disabled />
       <button id="btnCam" class="btn-cam" type="button">📷 Kamera-Scanner</button>
+      <button id="btnSammel" class="btn-sammel" type="button" disabled title="Mehrere Personen ohne einzelne Personalnummer erfassen">👥 Sammelzeile</button>
     </div>
     <div class="scan-hint" id="scanHint">Zuerst Aufsicht-PNR eingeben (Feld oben rechts).</div>
   </div>
@@ -381,6 +398,82 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
     <div class="cam-head"><span>📷 Kamera-Scanner</span><button id="camClose" class="cam-x">✕</button></div>
     <div class="cam-video-wrap"><video id="camVideo" playsinline muted></video><div class="cam-frame"></div></div>
     <div class="cam-hint" id="camHint">Barcode in den Rahmen halten …</div>
+  </div>
+</div>
+
+<!-- Blockierte Sync-Einträge -->
+<div class="modal-bg" id="syncModal">
+  <div class="modal">
+    <h3>⛔ Blockierte Übertragungen<button class="cam-x" id="syncModalClose" style="color:var(--ink-soft);">✕</button></h3>
+    <div class="mc">
+      <p style="margin:0;color:var(--ink-soft);font-size:.9rem">
+        Diese Einträge hat der Server abgelehnt. Sie halten die übrige Übertragung
+        nicht mehr auf, sind aber noch nicht gespeichert.
+      </p>
+      <div id="syncModalRows" style="display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow-y:auto"></div>
+    </div>
+    <div class="mf">
+      <button class="mbtn ghost" id="syncModalDone">Schließen</button>
+      <button class="mbtn primary" id="syncRetryAll">↻ Alle erneut versuchen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sammelzeile anlegen -->
+<div class="modal-bg" id="sammelModal">
+  <div class="modal">
+    <h3>👥 Sammelzeile hinzufügen<button class="cam-x" id="sammelClose" style="color:var(--ink-soft);">✕</button></h3>
+    <div class="mc">
+      <p style="margin:0;color:var(--ink-soft);font-size:.9rem">
+        Mehrere Personen ohne einzelne Personalnummer. Die Aufsicht wird davon nicht berührt –
+        sie bleibt mit Personalnummer erfasst.
+      </p>
+      <div>
+        <label>Anzahl Personen</label>
+        <div class="anz-step">
+          <button type="button" id="sammelMinus">−</button>
+          <input type="text" inputmode="numeric" enterkeyhint="done" id="sammelAnzahl" value="6" />
+          <button type="button" id="sammelPlus">+</button>
+        </div>
+      </div>
+      <div style="max-width:180px">
+        <label>Startzeit</label>
+        <input type="time" id="sammelStart" />
+      </div>
+      <div id="sammelHint" style="color:var(--danger);font-size:.85rem;display:none"></div>
+    </div>
+    <div class="mf">
+      <button class="mbtn ghost" id="sammelCancel">Abbrechen</button>
+      <button class="mbtn primary" id="sammelOk">Hinzufügen ✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- Teil-Abmeldung einer Sammelzeile -->
+<div class="modal-bg" id="abmModal">
+  <div class="modal">
+    <h3>👥 Abmelden<button class="cam-x" id="abmClose" style="color:var(--ink-soft);">✕</button></h3>
+    <div class="mc">
+      <div id="abmInfo" style="background:var(--sammel-soft);border-radius:8px;padding:10px 12px;font-size:.92rem;"></div>
+      <div>
+        <label>Wie viele gehen?</label>
+        <div class="anz-step">
+          <button type="button" id="abmMinus">−</button>
+          <input type="text" inputmode="numeric" enterkeyhint="done" id="abmAnzahl" value="1" />
+          <button type="button" id="abmPlus">+</button>
+        </div>
+      </div>
+      <div style="max-width:180px">
+        <label>Endzeit</label>
+        <input type="time" id="abmEnde" />
+      </div>
+      <p style="margin:0;color:var(--ink-soft);font-size:.85rem" id="abmErklaerung"></p>
+      <div id="abmHint" style="color:var(--danger);font-size:.85rem;display:none"></div>
+    </div>
+    <div class="mf">
+      <button class="mbtn ghost" id="abmCancel">Abbrechen</button>
+      <button class="mbtn primary" id="abmOk">Abmelden ✓</button>
+    </div>
   </div>
 </div>
 
@@ -684,6 +777,26 @@ function kulturName(k, frei){
   return "";
 }
 
+/* ── Sammelzeilen ──────────────────────────────────────────────────────
+   Eine Sammelzeile fasst mehrere Personen ohne einzelne Personalnummer in
+   einem Zeiteintrag zusammen (sammel=true, anzahl=N, pnr leer). Eine
+   Einzelperson ist derselbe Datensatz mit anzahl=1, sammel=false - dadurch
+   bleibt die gesamte uebrige Logik (Zeiten, Pause, Abschluss, Kulturwechsel)
+   unveraendert; nur Stunden- und Kopfsummen werden mit anzahl gewichtet. */
+const SAMMEL_MAX = 20;
+function isSammel(m){ return !!(m && m.sammel); }
+function maAnzahl(m){ const n = parseInt(m && m.anzahl, 10); return (!isNaN(n) && n > 0) ? n : 1; }
+function maLabel(m){
+  return isSammel(m) ? `${maAnzahl(m)} Personen` : `PNR ${m.pnr}`;
+}
+/* Anzahl aus einem Eingabefeld lesen und auf 1..SAMMEL_MAX begrenzen. */
+function clampAnzahl(v, max){
+  const n = parseInt(String(v).replace(/\D/g, ""), 10);
+  const obergrenze = max || SAMMEL_MAX;
+  if(isNaN(n)) return 1;
+  return Math.min(Math.max(n, 1), obergrenze);
+}
+
 /* 15-Minuten-Regel: Startzeit für neuen Mitarbeiter bestimmen.
    Referenzzeit = Startzeit der Aufsicht (nicht des Auftrags). */
 function calcWorkerStart(a, scanTime){
@@ -734,8 +847,9 @@ function auftragMissingList(a, closed){
   if(closed && !a.auftrag_ende) miss.push("Auftragsende");
   if(closed && (a.gesamtstueck === null || a.gesamtstueck === undefined)) miss.push("Gesamtstück");
   (a.mitarbeiter||[]).forEach(m => {
-    if(!m.start && closed) miss.push(`Mitarbeiter ${m.pnr}: Startzeit`); // nur bei abgeschlossenen Aufträgen
-    if(closed && !m.ende) miss.push(`Mitarbeiter ${m.pnr}: Endzeit`);
+    const lab = isSammel(m) ? `Sammelzeile (${maAnzahl(m)} Pers.)` : `Mitarbeiter ${m.pnr}`;
+    if(!m.start && closed) miss.push(`${lab}: Startzeit`); // nur bei abgeschlossenen Aufträgen
+    if(closed && !m.ende) miss.push(`${lab}: Endzeit`);
   });
   return miss;
 }
@@ -788,15 +902,29 @@ function mergeWorkersIntoLocal(a, serverWorkers){
       const savedCreated = local._created;
       const savedEnde    = local.ende;
       const savedPause   = local.pause;
+      const savedAnzahl  = local.anzahl;
+      const savedLocalMs = local._localMs || 0;
       Object.assign(local, sm);
       if(savedCreated) local._created = savedCreated;
       // Lokal gesetzte Endzeit beibehalten wenn Server sie noch nicht hat (pending sync)
       if(!local.ende && savedEnde){ local.ende = savedEnde; local.pause = savedPause; }
+      // Gleiches Prinzip fuer die Personenzahl einer Sammelzeile: ist die
+      // lokale Aenderung (z.B. Reduktion durch eine Teil-Abmeldung) neuer als
+      // der Serverstand, wuerde sie hier sonst kurzzeitig zurueckspringen.
+      local._localMs = savedLocalMs;
+      if(isSammel(local) && savedAnzahl && savedLocalMs > (sm.updated_ms || 0)){
+        local.anzahl = savedAnzahl;
+      }
       return;
     }
-    const duplicate = a.mitarbeiter.find(m =>
-      m.pnr === sm.pnr && m.rolle === sm.rolle && (m.start||"") === (sm.start||"") && !m._serverConfirmed
-    );
+    // Fallback nur fuer Einzelpersonen: Sammelzeilen haben keine PNR, ueber
+    // die sie sich unterscheiden liessen - zwei getrennt angelegte
+    // Sammelzeilen mit gleicher Startzeit wuerden hier faelschlich
+    // verschmolzen und eine Gruppe verschwinden.
+    const duplicate = (isSammel(sm) ? null : a.mitarbeiter.find(m =>
+      !isSammel(m) && m.pnr === sm.pnr && m.rolle === sm.rolle &&
+      (m.start||"") === (sm.start||"") && !m._serverConfirmed
+    ));
     if(duplicate){
       const saved = duplicate._created;
       Object.assign(duplicate, sm, {_serverConfirmed:true});
@@ -870,10 +998,11 @@ function renderAll(){
   // Scan-Bar: immer sichtbar; Input gesperrt wenn kein Auftrag oder kein Aufsicht
   const scanLocked = !has || !hasSvc;
   $("iPnr").disabled = scanLocked;
+  $("btnSammel").disabled = scanLocked;
   $("scanBar").classList.toggle("locked", scanLocked);
   if(!hasSvc)    $("scanHint").textContent = "Zuerst Aufsicht-PNR eingeben (Feld oben rechts).";
   else if(!has)  $("scanHint").textContent = "Kein Auftrag aktiv – Enter im Aufsicht-PNR-Feld drücken um Auftrag zu starten.";
-  else           $("scanHint").textContent = "Scan → Mitarbeiter wird dem laufenden Auftrag zugeordnet.";
+  else           $("scanHint").textContent = "Scan → Mitarbeiter wird dem laufenden Auftrag zugeordnet. Ohne einzelne PNR: 👥 Sammelzeile.";
 
   // Kein-Auftrag-State
   $("noAuftragState").style.display = has ? "none" : "block";
@@ -887,10 +1016,12 @@ function renderAll(){
   // "Mitarbeiter aktiv" zaehlt bewusst ALLE aktiven Personen inkl. Aufsicht -
   // die Aufsicht ist eine aktive Mitarbeiterin, keine Sonderkategorie.
   // "Aufsichten" bleibt zusaetzlich als Teilmenge sichtbar (informativ).
+  // Sammelzeilen zaehlen mit ihrer Personenzahl, nicht als eine Person -
+  // sowohl bei den Koepfen als auch bei den Stunden (siehe maAnzahl()).
   const maRows = a ? (a.mitarbeiter || []) : [];
-  const activeMA  = maRows.filter(m => !m.ende).length;
+  const activeMA  = maRows.filter(m => !m.ende).reduce((s,m) => s + maAnzahl(m), 0);
   const activeAuf = maRows.filter(m => m.rolle === "aufsicht" && !m.ende).length;
-  const totalMH   = maRows.reduce((s,m) => s + nettoH(m.start, m.ende, m.pause), 0);
+  const totalMH   = maRows.reduce((s,m) => s + nettoH(m.start, m.ende, m.pause) * maAnzahl(m), 0);
   const stk = a && (a.gesamtstueck !== null && a.gesamtstueck !== undefined) ? a.gesamtstueck : "—";
   $("statMA").textContent       = activeMA;
   $("statAufsicht").textContent = activeAuf;
@@ -906,6 +1037,7 @@ function renderAll(){
   $("auftragPanel").title = orderMissing.length ? "Fehlende Angaben: " + orderMissing.join(", ") : "";
   if(closed && !isAdmin()){
     $("iPnr").disabled = true;
+    $("btnSammel").disabled = true;
     $("scanBar").classList.add("locked");
     $("scanHint").textContent = "Auftrag bereits abgeschlossen.";
   }
@@ -1138,12 +1270,9 @@ function renderMaList(a, closed){
     $("malistRows").innerHTML = `<div style="color:var(--ink-soft);padding:16px;text-align:center">Noch keine Mitarbeiter erfasst.</div>`;
     return;
   }
-  // Aufsicht zuerst, dann Service
-  const sorted = [...malist].sort((x,y) => {
-    if(x.rolle === "aufsicht" && y.rolle !== "aufsicht") return -1;
-    if(y.rolle === "aufsicht" && x.rolle !== "aufsicht") return  1;
-    return 0;
-  });
+  // Aufsicht zuerst, dann Sammelzeilen, dann einzelne Service-Mitarbeiter
+  const rang = m => (m.rolle === "aufsicht" ? 0 : (isSammel(m) ? 1 : 2));
+  const sorted = [...malist].sort((x,y) => rang(x) - rang(y));
   sorted.forEach(m => {
     const row = document.createElement("div");
     const abgemeldet = !!m.ende;
@@ -1151,24 +1280,41 @@ function renderMaList(a, closed){
     const missingStart = !m.start && closed;
     const missingEnde  = !m.ende && closed;
     const incomplete   = missingStart || missingEnde;
+    const sammel       = isSammel(m);
     row.className = "ma-row"
       + (abgemeldet ? " abgemeldet" : "")
       + (m.rolle === "aufsicht" ? " aufsicht-row" : "")
+      + (sammel ? " sammel-row" : "")
       + (incomplete ? " incomplete" : "");
     if(incomplete) row.title = missingStart ? "Startzeit fehlt" : "Endzeit fehlt (Auftrag abgeschlossen)";
     row.dataset.mzid = m.id;
 
     const rolleHtml = m.rolle === "aufsicht"
       ? `<span class="ma-rolle rolle-aufsicht">AUFSICHT</span>`
-      : `<span class="ma-rolle rolle-service">Service</span>`;
+      : (sammel ? `<span class="ma-rolle rolle-sammel">SAMMEL</span>`
+                : `<span class="ma-rolle rolle-service">Service</span>`);
 
     const pauseLocked = closed && !isAdmin();
     const pauseButtons = [0, 0.25, 0.5, 0.75].map(v =>
       `<button class="pause-btn${(m.pause||0) === v ? " on" : ""}" data-v="${v}" ${pauseLocked ? "disabled" : ""}>${v === 0 ? "0" : v.toString().replace(".", ",")}</button>`
     ).join("");
 
+    // Sammelzeile: statt der Personalnummer die Personenzahl mit −/+-Stepper.
+    // Der Stepper ist gesperrt, sobald die Zeile abgemeldet oder der Auftrag
+    // abgeschlossen ist - eine nachtraegliche Aenderung wuerde sonst die
+    // bereits gebuchten Stunden still verschieben.
+    const anzLocked = abgemeldet || (closed && !isAdmin());
+    const pnrHtml = sammel
+      ? `<span class="ma-anz" title="Anzahl Personen">
+           <button class="anz-minus" ${anzLocked ? "disabled" : ""}>−</button>
+           <span class="val">${maAnzahl(m)}</span>
+           <button class="anz-plus" ${anzLocked ? "disabled" : ""}>+</button>
+         </span>
+         <span style="font-size:.8rem;color:var(--ink-soft)">Pers.</span>`
+      : `<span class="ma-pnr">${esc(m.pnr)}</span>`;
+
     row.innerHTML = `
-      <span class="ma-pnr">${esc(m.pnr)}</span>
+      ${pnrHtml}
       ${rolleHtml}
       <div class="ma-time">
         <input type="time" class="t-start" value="${m.start||""}" title="Startzeit" ${(closed && !isAdmin()) ? "disabled" : ""}>
@@ -1214,15 +1360,33 @@ function renderMaList(a, closed){
       });
     });
 
+    // Anzahl-Stepper (nur Sammelzeile)
+    if(sammel && !anzLocked){
+      const setAnz = delta => {
+        const neu = clampAnzahl(maAnzahl(m) + delta);
+        if(neu === maAnzahl(m)) return;
+        m.anzahl = neu;
+        queueWorkerUpdate(m, a);
+        renderAll();
+      };
+      const bMinus = row.querySelector(".anz-minus");
+      const bPlus  = row.querySelector(".anz-plus");
+      if(bMinus) bMinus.addEventListener("click", () => setAnz(-1));
+      if(bPlus)  bPlus.addEventListener("click",  () => setAnz(+1));
+    }
+
     // Abmelden-Button
     const btnAbm = row.querySelector(".btn-abmelden");
     if(btnAbm && !abgemeldet && !(closed && !isAdmin())){
       btnAbm.addEventListener("click", () => {
+        // Sammelzeile mit mehr als einer Person: nachfragen, wie viele gehen -
+        // gehen nicht alle, wird die Zeile aufgeteilt (siehe openAbmModal).
+        if(sammel && maAnzahl(m) > 1){ openAbmModal(m, a); return; }
         m.ende = nowHM();
         m.pause = calcAutoPause(m.start, m.ende);
         queueWorkerUpdate(m, a);
         renderAll();
-        toast(`${m.pnr} abgemeldet`);
+        toast(`${maLabel(m)} abgemeldet`);
       });
     }
 
@@ -1231,11 +1395,11 @@ function renderMaList(a, closed){
     if(btnDel){
       btnDel.addEventListener("click", async () => {
         if(!isAdmin()){ toast("Nur im Admin-Modus möglich", true); return; }
-        if(!confirm(`PNR ${m.pnr} aus dem Auftrag löschen?`)) return;
+        if(!confirm(`${maLabel(m)} aus dem Auftrag löschen?`)) return;
         TMSync.queueWorkerDelete({ pw: _adminPw, mz_id: m.id, auftrag_id: a.id });
         a.mitarbeiter = a.mitarbeiter.filter(x => x.id !== m.id);
         renderAll();
-        toast(`PNR ${m.pnr} gelöscht`);
+        toast(`${maLabel(m)} gelöscht`);
       });
     }
 
@@ -1248,15 +1412,21 @@ function updatePauseSeg(row, val){
 }
 
 function queueWorkerUpdate(m, a){
-  TMSync.queueWorkerUpdate({
+  const ts = Date.now();
+  m._localMs = ts;   // Zeitstempel der letzten lokalen Aenderung (siehe mergeWorkersIntoLocal)
+  const body = {
     mz_id:      m.id,
     auftrag_id: a.id,
     start:      m.start,
     ende:       m.ende,
     pause:      m.pause,
     rolle:      m.rolle,
-    updated_ms: Date.now(),
-  });
+    updated_ms: ts,
+  };
+  // anzahl nur bei Sammelzeilen mitsenden - der Server weist sie bei
+  // Einzelpersonen bewusst zurueck (siehe main.py update_worker).
+  if(isSammel(m)) body.anzahl = maAnzahl(m);
+  TMSync.queueWorkerUpdate(body);
 }
 
 /* Wenn Aufsicht sich abmeldet: prüfen ob noch andere aktive Aufsichten vorhanden.
@@ -1348,6 +1518,159 @@ function handleScanPnr(pnrStr){
   toast(`PNR ${pnrStr} erfasst – Start ${start}`);
 }
 
+/* ── Blockierte Sync-Einträge ─────────────────────────────────────────── */
+const _SYNC_TYP_NAME = {
+  auftrag_new:    "Auftrag anlegen",
+  auftrag_update: "Auftrag ändern",
+  worker_scan:    "Mitarbeiter erfassen",
+  worker_update:  "Mitarbeiter-Zeit ändern",
+  worker_delete:  "Mitarbeiter löschen",
+  auftrag_close:  "Auftrag abschließen",
+  neue_kultur:    "Neue Kultur",
+  auftrag_delete: "Auftrag löschen",
+  day_close:      "Tag abschließen",
+};
+
+function openSyncModal(blockiert){
+  const c = $("syncModalRows"); c.innerHTML = "";
+  if(!blockiert.length){
+    c.innerHTML = `<div style="color:var(--ink-soft)">Keine blockierten Einträge.</div>`;
+  }
+  blockiert.forEach(o => {
+    const d = o.zeit ? new Date(o.zeit) : null;
+    const zeit = d ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : "—";
+    const el = document.createElement("div");
+    el.style.cssText = "background:#fff;border:1px solid var(--paper-line);border-left:4px solid var(--danger);border-radius:8px;padding:10px 12px;";
+    el.innerHTML = `
+      <div style="font-weight:700;font-size:.92rem">${esc(_SYNC_TYP_NAME[o.type] || o.type)} <span style="font-weight:400;color:var(--ink-soft)">· ${zeit} Uhr</span></div>
+      <div style="font-size:.85rem;color:var(--danger);margin:4px 0 8px">${esc(o.grund)}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-tool btn-ghost" data-retry="${o.opid}" style="flex:0 0 auto;padding:6px 12px;font-size:.82rem">↻ Erneut versuchen</button>
+        <button class="btn-tool btn-danger" data-discard="${o.opid}" style="flex:0 0 auto;padding:6px 12px;font-size:.82rem">🗑 Verwerfen</button>
+      </div>`;
+    c.appendChild(el);
+  });
+  c.querySelectorAll("[data-retry]").forEach(b => b.addEventListener("click", async () => {
+    await TMSync.retryOp(b.dataset.retry);
+    toast("Erneuter Versuch gestartet");
+    openSyncModal(await TMSync.getBlockedOps());
+  }));
+  // Verwerfen vernichtet eine erfasste Aenderung endgueltig - deshalb nur im
+  // Admin-Modus und mit ausdruecklicher Bestaetigung.
+  c.querySelectorAll("[data-discard]").forEach(b => b.addEventListener("click", async () => {
+    if(!isAdmin()){ const ok = await ensureAdmin("Admin erforderlich", "Verwerfen löscht die erfasste Änderung endgültig."); if(!ok) return; }
+    if(!confirm("Diesen Eintrag endgültig verwerfen? Die erfasste Änderung geht dabei verloren.")) return;
+    await TMSync.discardOp(b.dataset.discard);
+    toast("Eintrag verworfen", true);
+    openSyncModal(await TMSync.getBlockedOps());
+  }));
+  $("syncModal").classList.add("show");
+}
+
+$("syncModalClose").onclick = () => $("syncModal").classList.remove("show");
+$("syncModalDone").onclick  = () => $("syncModal").classList.remove("show");
+$("syncRetryAll").onclick   = async () => {
+  await TMSync.retryAllBlocked();
+  toast("Alle blockierten Einträge erneut gestartet");
+  $("syncModal").classList.remove("show");
+};
+
+/* ── Sammelzeile anlegen ──────────────────────────────────────────────── */
+function openSammelModal(){
+  const a = state.auftrag;
+  if(!a){ toast("Erst Aufsicht erfassen", true); return; }
+  if(a.status === "abgeschlossen" && !isAdmin()){ toast("Auftrag abgeschlossen", true); return; }
+  $("sammelAnzahl").value = "6";
+  $("sammelStart").value  = calcWorkerStart(a, nowHM());
+  $("sammelHint").style.display = "none";
+  $("sammelModal").classList.add("show");
+}
+
+function addSammelzeile(anzahl, start){
+  const a = state.auftrag; if(!a) return;
+  const mzId  = TMSync.newOpId();
+  const entry = {
+    id: mzId, auftrag_id: a.id, pnr: "", rolle: "service",
+    start, ende: "", pause: 0, anzahl, sammel: true, _created: Date.now(),
+  };
+  a.mitarbeiter = a.mitarbeiter || [];
+  a.mitarbeiter.push(entry);
+  TMSync.queueScan({
+    auftrag_id: a.id, mz_id: mzId, pnr: "", rolle: "service",
+    start, anzahl, sammel: true, updated_ms: Date.now(),
+  });
+  renderAll();
+  tonOk();
+  toast(`Sammelzeile mit ${anzahl} Personen – Start ${start}`);
+}
+
+/* ── Teil-Abmeldung einer Sammelzeile ──────────────────────────────────
+   Gehen nicht alle gleichzeitig, wird die Zeile geteilt: die abgehende
+   Teilgruppe wird zu einer eigenen Sammelzeile mit Endzeit, die
+   urspruengliche Zeile laeuft mit der Restzahl weiter. Beide Zeilen
+   berechnen ihre Pause eigenstaendig aus ihren eigenen Zeiten. */
+let _abmMa = null;
+function openAbmModal(m, a){
+  _abmMa = m;
+  const n = maAnzahl(m);
+  $("abmInfo").innerHTML = `Sammelzeile mit <b>${n} Personen</b>, Start ${esc(m.start || "—")}`;
+  $("abmAnzahl").value = String(n);
+  $("abmEnde").value   = nowHM();
+  $("abmHint").style.display = "none";
+  updateAbmErklaerung();
+  $("abmModal").classList.add("show");
+}
+
+function updateAbmErklaerung(){
+  if(!_abmMa) return;
+  const gesamt = maAnzahl(_abmMa);
+  const geht   = clampAnzahl($("abmAnzahl").value, gesamt);
+  const rest   = gesamt - geht;
+  $("abmErklaerung").textContent = rest > 0
+    ? `${geht} Personen werden abgemeldet, ${rest} laufen als eigene Zeile weiter.`
+    : `Alle ${gesamt} Personen werden abgemeldet.`;
+}
+
+function applyAbmeldung(){
+  const m = _abmMa, a = state.auftrag;
+  if(!m || !a) return;
+  const gesamt = maAnzahl(m);
+  const geht   = clampAnzahl($("abmAnzahl").value, gesamt);
+  const ende   = $("abmEnde").value || nowHM();
+  const rest   = gesamt - geht;
+
+  if(rest <= 0){
+    // Alle gehen - normale Abmeldung ohne Split
+    m.ende  = ende;
+    m.pause = calcAutoPause(m.start, m.ende);
+    queueWorkerUpdate(m, a);
+    toast(`${gesamt} Personen abgemeldet`);
+  } else {
+    // Split: abgehende Teilgruppe als neue, bereits beendete Sammelzeile
+    const mzId = TMSync.newOpId();
+    const teil = {
+      id: mzId, auftrag_id: a.id, pnr: "", rolle: m.rolle,
+      start: m.start, ende, pause: calcAutoPause(m.start, ende),
+      anzahl: geht, sammel: true, _created: Date.now(),
+    };
+    a.mitarbeiter.push(teil);
+    // Zwei Schritte, damit die bestehende Outbox-Logik greift: anlegen
+    // (worker_scan) und danach Endzeit/Pause setzen (worker_update).
+    TMSync.queueScan({
+      auftrag_id: a.id, mz_id: mzId, pnr: "", rolle: m.rolle,
+      start: m.start, anzahl: geht, sammel: true, updated_ms: Date.now(),
+    });
+    queueWorkerUpdate(teil, a);
+    // Ursprungszeile um die abgegangenen Personen reduzieren
+    m.anzahl = rest;
+    queueWorkerUpdate(m, a);
+    toast(`${geht} Personen abgemeldet · ${rest} laufen weiter`);
+  }
+  $("abmModal").classList.remove("show");
+  _abmMa = null;
+  renderAll();
+}
+
 function handleInput(raw){
   const s = String(raw).trim().toUpperCase();
   const pm = s.match(/^P(\d{4,5})$/);
@@ -1368,6 +1691,50 @@ function handleInput(raw){
   }
   handleScanPnr(pnr);
 }
+
+/* ── Bedienung: Sammelzeile-Modal ──────────────────────────────────────── */
+$("btnSammel").onclick    = () => openSammelModal();
+$("sammelClose").onclick  = () => $("sammelModal").classList.remove("show");
+$("sammelCancel").onclick = () => $("sammelModal").classList.remove("show");
+$("sammelMinus").onclick  = () => { $("sammelAnzahl").value = clampAnzahl(parseInt($("sammelAnzahl").value,10) - 1); };
+$("sammelPlus").onclick   = () => { $("sammelAnzahl").value = clampAnzahl(parseInt($("sammelAnzahl").value,10) + 1); };
+$("sammelAnzahl").addEventListener("change", () => { $("sammelAnzahl").value = clampAnzahl($("sammelAnzahl").value); });
+$("sammelOk").onclick = () => {
+  const anzahl = clampAnzahl($("sammelAnzahl").value);
+  const start  = $("sammelStart").value;
+  if(!start){
+    $("sammelHint").textContent = "Startzeit fehlt.";
+    $("sammelHint").style.display = "block";
+    return;
+  }
+  $("sammelModal").classList.remove("show");
+  addSammelzeile(anzahl, start);
+};
+
+/* ── Bedienung: Teil-Abmeldung ─────────────────────────────────────────── */
+$("abmClose").onclick  = () => { $("abmModal").classList.remove("show"); _abmMa = null; };
+$("abmCancel").onclick = () => { $("abmModal").classList.remove("show"); _abmMa = null; };
+$("abmMinus").onclick  = () => {
+  $("abmAnzahl").value = clampAnzahl(parseInt($("abmAnzahl").value,10) - 1, maAnzahl(_abmMa));
+  updateAbmErklaerung();
+};
+$("abmPlus").onclick = () => {
+  $("abmAnzahl").value = clampAnzahl(parseInt($("abmAnzahl").value,10) + 1, maAnzahl(_abmMa));
+  updateAbmErklaerung();
+};
+$("abmAnzahl").addEventListener("input", () => updateAbmErklaerung());
+$("abmAnzahl").addEventListener("change", () => {
+  $("abmAnzahl").value = clampAnzahl($("abmAnzahl").value, maAnzahl(_abmMa));
+  updateAbmErklaerung();
+});
+$("abmOk").onclick = () => {
+  if(!$("abmEnde").value){
+    $("abmHint").textContent = "Endzeit fehlt.";
+    $("abmHint").style.display = "block";
+    return;
+  }
+  applyAbmeldung();
+};
 
 // Scanner-Eingabe (iPnr-Feld)
 $("iPnr").addEventListener("keydown", ev => {
@@ -1539,7 +1906,8 @@ function renderNkTransferList(a, pauseEnde){
   c.innerHTML = active.map(m => `
     <label style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--paper-line);border-radius:7px;padding:7px 9px;">
       <input type="checkbox" data-transfer-id="${m.id}" ${_nkTransferIds.has(m.id) ? "checked" : ""}>
-      <b>${m.pnr}</b><span style="color:var(--ink-soft)">${m.rolle === "aufsicht" ? "Aufsicht" : "Service"}</span>
+      <b>${isSammel(m) ? "👥 " + maAnzahl(m) + " Personen" : esc(m.pnr)}</b>
+      <span style="color:var(--ink-soft)">${m.rolle === "aufsicht" ? "Aufsicht" : (isSammel(m) ? "Sammelzeile" : "Service")}</span>
     </label>`).join("");
   c.querySelectorAll("[data-transfer-id]").forEach(inp => {
     inp.addEventListener("change", () => {
@@ -1700,9 +2068,13 @@ $("nkOk").onclick = () => {
     _nkTransferIds.forEach(mid => {
       const m = (a.mitarbeiter||[]).find(x => x.id === mid); if(!m) return;
       const newMzId = TMSync.newOpId();
-      const newWorker = { id: newMzId, auftrag_id: newId, pnr: m.pnr, rolle: m.rolle, start: newStart, ende: "", pause: 0, _created: Date.now() };
+      const newWorker = { id: newMzId, auftrag_id: newId, pnr: m.pnr, rolle: m.rolle,
+                          start: newStart, ende: "", pause: 0,
+                          anzahl: maAnzahl(m), sammel: isSammel(m), _created: Date.now() };
       transferred.push(newWorker);
-      TMSync.queueScan({ auftrag_id: newId, mz_id: newMzId, pnr: m.pnr, rolle: m.rolle, start: newStart, updated_ms: Date.now() });
+      TMSync.queueScan({ auftrag_id: newId, mz_id: newMzId, pnr: m.pnr, rolle: m.rolle,
+                         start: newStart, anzahl: maAnzahl(m), sammel: isSammel(m),
+                         updated_ms: Date.now() });
     });
     state.auftrag = {
       id: newId, auftragsnr: "TM-…", datum: state.datumISO,
@@ -1754,7 +2126,9 @@ $("nkOk").onclick = () => {
 
   const transferred = (a.mitarbeiter||[])
     .filter(m => ohneEnde.has(m.id) && _nkTransferIds.has(m.id))
-    .map(m => ({ id: TMSync.newOpId(), auftrag_id: newId, pnr: m.pnr, rolle: m.rolle, start: ende, ende: "", pause: 0, _created: Date.now() }));
+    .map(m => ({ id: TMSync.newOpId(), auftrag_id: newId, pnr: m.pnr, rolle: m.rolle,
+                 start: ende, ende: "", pause: 0,
+                 anzahl: maAnzahl(m), sammel: isSammel(m), _created: Date.now() }));
 
   state.auftrag = {
     id: newId, auftragsnr: "TM-…", datum: state.datumISO,
@@ -1942,8 +2316,8 @@ $("btnEditAuftrag").onclick = async () => {
     const d = document.createElement("div");
     d.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;";
     d.innerHTML = `
-      <span style="min-width:62px;font-weight:700;font-size:.92rem">${esc(m.pnr)}</span>
-      <span style="font-size:.72rem;color:var(--ink-soft);min-width:52px">${esc(m.rolle)}</span>
+      <span style="min-width:62px;font-weight:700;font-size:.92rem">${isSammel(m) ? "👥 " + maAnzahl(m) : esc(m.pnr)}</span>
+      <span style="font-size:.72rem;color:var(--ink-soft);min-width:52px">${isSammel(m) ? "sammel" : esc(m.rolle)}</span>
       <label style="font-size:.75rem;color:var(--ink-soft)">Start</label>
       <input type="time" data-mzid="${m.id}" data-field="start" value="${m.start||""}"
              style="padding:5px 8px;border:1.5px solid var(--paper-line);border-radius:6px;font-size:.88rem;">
@@ -2230,15 +2604,34 @@ async function init(){
   await loadAndMerge();
   TMSync.scheduleSync();
   TMSync.startPeriodicReload(() => { loadAndMerge(); }, 30000);
-  TMSync.onStatus(n => {
-    $("syncBadge").textContent = n > 0 ? `⧳ ${n} ausstehend` : "● Synchron";
-    $("syncBadge").style.color = n > 0 ? "#f5c542" : "#9fe0a4";
+  // Die Anzeige unterscheidet jetzt zwei Zustaende: "ausstehend" (wartet auf
+  // Netz, laeuft von selbst weiter) und "blockiert" (vom Server abgelehnt,
+  // braucht eine Entscheidung). Vorher sah beides identisch aus, wodurch ein
+  // abgelehnter Eintrag wie ein Netzproblem wirkte.
+  TMSync.onStatus((n, lastOk, blockiert) => {
+    const b   = (blockiert || []).length;
+    const bad = $("syncBadge");
+    if(b > 0){
+      bad.textContent = `⛔ ${b} blockiert${n - b > 0 ? ` · ${n - b} ausstehend` : ""}`;
+      bad.style.color = "#ff9c8a";
+      bad.title = "Klick = blockierte Einträge anzeigen\n" +
+                  blockiert.map(o => `${o.type}: ${o.grund}`).join("\n");
+    } else {
+      bad.textContent = n > 0 ? `⧳ ${n} ausstehend` : "● Synchron";
+      bad.style.color = n > 0 ? "#f5c542" : "#9fe0a4";
+      bad.title = "Klick = jetzt synchronisieren";
+    }
   });
   // Sync-Status-Anzeige dient zugleich als manueller "Jetzt synchronisieren"-
   // Button - nuetzlich als Sofort-Workaround, falls doch einmal ein
   // haengender Zustand auftritt, ohne dass ein voller Seiten-Reload noetig
   // ist (siehe sync.js, forceSync()).
-  $("syncBadge").addEventListener("click", () => TMSync.forceSync());
+  // Gibt es blockierte Eintraege, oeffnet der Klick stattdessen deren Liste.
+  $("syncBadge").addEventListener("click", async () => {
+    const blockiert = await TMSync.getBlockedOps();
+    if(blockiert.length) openSyncModal(blockiert);
+    else TMSync.forceSync();
+  });
 
   renderAll();
 }

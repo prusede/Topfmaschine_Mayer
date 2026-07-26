@@ -62,6 +62,9 @@ ARBEITEN    = []  # Arbeitskategorien entfernt
 TOPFGROESSEN = ["9er", "11er"]
 PNR_MIN     = 1001
 PNR_MAX     = 99999
+# Sammelzeile: mehrere Personen ohne einzelne Personalnummer in einer Zeile.
+# Obergrenze als Plausibilitaetsbremse gegen Tippfehler (z.B. 60 statt 6).
+SAMMEL_MAX  = 20
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="Topfmaschine Mayer – Erfassung")
@@ -152,6 +155,17 @@ def validate_pnr(pnr: str) -> str:
     if not (PNR_MIN <= n <= PNR_MAX):
         raise HTTPException(400, f"Personalnummer muss zwischen {PNR_MIN} und {PNR_MAX} liegen")
     return str(n)
+
+
+def validate_anzahl(n) -> int:
+    """Personenzahl einer Sammelzeile."""
+    try:
+        v = int(n)
+    except (ValueError, TypeError):
+        raise HTTPException(400, "Personenanzahl muss eine Zahl sein")
+    if not (1 <= v <= SAMMEL_MAX):
+        raise HTTPException(400, f"Personenanzahl muss zwischen 1 und {SAMMEL_MAX} liegen")
+    return v
 
 
 def validate_topfgroesse(tg: Optional[str]) -> Optional[str]:
@@ -295,9 +309,11 @@ class AuftragUpdateIn(BaseModel):
 class ScanIn(BaseModel):
     auftrag_id: str
     mz_id: str
-    pnr: str
+    pnr: str = ""
     rolle: str = "service"
     start: str = ""
+    anzahl: int = 1        # nur bei sammel=True relevant
+    sammel: bool = False   # True = Sammelzeile ohne einzelne Personalnummer
     updated_ms: Optional[int] = None
 
 
@@ -308,6 +324,7 @@ class WorkerUpdateIn(BaseModel):
     ende: Optional[str] = None
     pause: Optional[float] = None
     rolle: Optional[str] = None
+    anzahl: Optional[int] = None
     updated_ms: Optional[int] = None
     pw: str = ""  # nur nötig wenn zugehöriger Auftrag/Tag bereits abgeschlossen ist
 
@@ -369,6 +386,7 @@ class WorkerEditIn(BaseModel):
     ende: Optional[str] = None
     pause: Optional[float] = None
     rolle: Optional[str] = None
+    anzahl: Optional[int] = None
 
 
 class AuswertungRequest(BaseModel):
@@ -406,12 +424,16 @@ def _abschluss_missing(auftrag: dict, auftrag_ende: Optional[str] = None,
         missing.append("Gesamtstueck")
     for m in auftrag.get("mitarbeiter", []):
         ma_missing = []
-        if not m.get("pnr"):
+        if m.get("sammel"):
+            # Sammelzeile hat keine Personalnummer - Pflichtfeld ist die Anzahl.
+            if not m.get("anzahl") or int(m.get("anzahl") or 0) < 1:
+                ma_missing.append("Personenanzahl")
+        elif not m.get("pnr"):
             ma_missing.append("Personalnummer")
         if not m.get("start"):
             ma_missing.append("Startzeit")
         if ma_missing:
-            missing.append(f"Mitarbeiter {m.get('pnr') or m.get('id')}: {', '.join(ma_missing)}")
+            missing.append(f"{db.worker_label(m)}: {', '.join(ma_missing)}")
     return missing
 
 
@@ -430,7 +452,7 @@ def _day_close_problems(datum: str) -> list:
         missing = _abschluss_missing(a)
         for m in a.get("mitarbeiter", []):
             if not m.get("ende"):
-                missing.append(f"Mitarbeiter {m.get('pnr') or m.get('id')}: Endzeit")
+                missing.append(f"{db.worker_label(m)}: Endzeit")
         if missing:
             problems.append({"auftrag": a.get("auftragsnr") or a.get("id"), "missing": missing})
     return problems
@@ -438,6 +460,44 @@ def _day_close_problems(datum: str) -> list:
 
 def _day_is_closed(datum: str) -> bool:
     return bool(db.get_day_close(datum).get("closed"))
+
+
+# Toleranz fuer den Uhrenversatz zwischen Tablet und Server. Die Zeitstempel
+# der Aenderung stammen vom Geraet, der Abschlusszeitpunkt vom Server.
+_NACHZUEGLER_TOLERANZ_MS = 5 * 60 * 1000
+
+
+def _sperr_zeitpunkt(auftrag: dict) -> Optional[int]:
+    """Fruehester Zeitpunkt, ab dem der Auftrag gesperrt ist - Auftrags- oder
+    Tagesabschluss, je nachdem was zuerst kam. None, wenn keine Sperre greift
+    oder der Zeitpunkt nicht bekannt ist (Altdaten, per Admin gesetzter
+    Status) - dann bleibt es bei der strengen Ablehnung."""
+    kandidaten = []
+    if auftrag.get("status") == "abgeschlossen" and auftrag.get("closed_ms"):
+        kandidaten.append(int(auftrag["closed_ms"]))
+    tag = db.get_day_close(auftrag.get("datum", ""))
+    if tag.get("closed") and tag.get("closed_ms"):
+        kandidaten.append(int(tag["closed_ms"]))
+    return min(kandidaten) if kandidaten else None
+
+
+def _ist_nachzuegler(auftrag: Optional[dict], updated_ms: Optional[int]) -> bool:
+    """Wurde die Aenderung erfasst, BEVOR der Auftrag/Tag abgeschlossen wurde?
+
+    Hintergrund: Die App arbeitet offlinefaehig ueber eine Warteschlange. Eine
+    Zeitkorrektur, die die Aufsicht kurz vor dem Abschluss vorgenommen hat,
+    kann den Server erst nach dem Abschluss erreichen - etwa weil der
+    Abschluss von einem anderen Geraet kam oder das Tablet zwischenzeitlich
+    offline war. Solche Nachzuegler abzulehnen bedeutete bisher, dass die
+    Aenderung verloren ging UND die gesamte Warteschlange blockierte. Eine
+    echte nachtraegliche Korrektur (Zeitstempel nach dem Abschluss) bleibt
+    weiterhin dem Admin-Modus vorbehalten."""
+    if not auftrag or not updated_ms:
+        return False
+    grenze = _sperr_zeitpunkt(auftrag)
+    if grenze is None:
+        return False
+    return int(updated_ms) <= grenze + _NACHZUEGLER_TOLERANZ_MS
 
 
 # ── Statische Dateien ─────────────────────────────────────────────────────────
@@ -556,10 +616,20 @@ def update_auftrag(body: AuftragUpdateIn):
 
 @app.post("/api/auftrag/scan")
 def scan_worker(body: ScanIn):
-    """Fuegt einen Mitarbeiter (Aufsicht oder Service) zum aktiven Auftrag hinzu."""
-    pnr = validate_pnr(body.pnr)
+    """Fuegt einen Mitarbeiter zum aktiven Auftrag hinzu - entweder als
+    Einzelperson mit Personalnummer oder als Sammelzeile fuer mehrere Personen
+    ohne einzelne Erfassung (sammel=True). Die Aufsicht muss immer eine
+    Personalnummer haben; eine Sammelzeile ist deshalb stets 'service'."""
     if body.rolle not in ("aufsicht", "service"):
         raise HTTPException(400, "Rolle muss 'aufsicht' oder 'service' sein")
+    if body.sammel:
+        if body.rolle == "aufsicht":
+            raise HTTPException(400, "Die Aufsicht muss mit Personalnummer erfasst werden")
+        pnr    = ""
+        anzahl = validate_anzahl(body.anzahl)
+    else:
+        pnr    = validate_pnr(body.pnr)
+        anzahl = 1
 
     auftrag = db.get_auftrag_by_id(body.auftrag_id)
     if not auftrag:
@@ -568,20 +638,26 @@ def scan_worker(body: ScanIn):
         raise HTTPException(400, "Tag ist bereits abgeschlossen")
 
     ts = body.updated_ms or int(time.time() * 1000)
+    start = body.start or _nowHM()
     db.upsert_mitarbeiter({
         "id":         body.mz_id,
         "auftrag_id": body.auftrag_id,
         "pnr":        pnr,
         "rolle":      body.rolle,
-        "start":      body.start or _nowHM(),
+        "start":      start,
         "ende":       "",
         "pause":      0,
+        "anzahl":     anzahl,
+        "sammel":     bool(body.sammel),
         "created_ms": ts,
         "updated_ms": ts,
     })
-    if body.rolle == "aufsicht":
-        db.log_audit("aufsicht_add", "user", body.auftrag_id, f"pnr={pnr},start={body.start or _nowHM()}")
-    return {"ok": True, "pnr": pnr, "rolle": body.rolle}
+    if body.sammel:
+        db.log_audit("sammel_add", "user", body.auftrag_id, f"anzahl={anzahl},start={start}")
+    elif body.rolle == "aufsicht":
+        db.log_audit("aufsicht_add", "user", body.auftrag_id, f"pnr={pnr},start={start}")
+    return {"ok": True, "pnr": pnr, "rolle": body.rolle,
+            "anzahl": anzahl, "sammel": bool(body.sammel)}
 
 
 @app.post("/api/worker/update")
@@ -598,8 +674,12 @@ def update_worker(body: WorkerUpdateIn):
     locked = bool(auftrag) and (
         auftrag.get("status") == "abgeschlossen" or _day_is_closed(auftrag.get("datum", ""))
     )
+    nachzuegler = False
     if locked and not _admin_ok(body.pw):
-        raise HTTPException(400, "Auftrag/Tag abgeschlossen – Änderung nur im Admin-Modus")
+        if _ist_nachzuegler(auftrag, body.updated_ms):
+            nachzuegler = True
+        else:
+            raise HTTPException(400, "Auftrag/Tag abgeschlossen – Änderung nur im Admin-Modus")
 
     ts = body.updated_ms or int(time.time() * 1000)
     fields: dict = {}
@@ -608,6 +688,13 @@ def update_worker(body: WorkerUpdateIn):
     if body.pause  is not None: fields["pause"]  = validate_pause(
         body.pause, fields.get("start", mz.get("start", "")), fields.get("ende", mz.get("ende", "")))
     if body.rolle  is not None: fields["rolle"]  = validate_rolle(body.rolle)
+    if body.anzahl is not None:
+        # Die Personenzahl ist nur bei Sammelzeilen ein echtes Feld - bei einer
+        # Einzelperson waere sie immer 1 und ein abweichender Wert wuerde die
+        # Stundensumme still verfaelschen.
+        if not mz.get("sammel"):
+            raise HTTPException(400, "Personenanzahl ist nur bei Sammelzeilen änderbar")
+        fields["anzahl"] = validate_anzahl(body.anzahl)
     if not fields:
         return {"ok": True}
     sets = ", ".join(f"{k}=:{k}" for k in fields)
@@ -618,7 +705,8 @@ def update_worker(body: WorkerUpdateIn):
                   fields)
         c.commit()
     db.log_audit("worker_update", _actor(body.pw) if body.pw else "user", body.mz_id,
-                 f"auftrag={mz['auftrag_id']},locked={locked},fields={list(fields.keys())}")
+                 f"auftrag={mz['auftrag_id']},locked={locked},"
+                 f"nachzuegler={nachzuegler},fields={list(fields.keys())}")
     return {"ok": True}
 
 
@@ -718,7 +806,8 @@ def neue_kultur(body: NeueKulturIn):
 
     new_start = body.new_auftrag_start or body.auftrag_ende or _nowHM()
     transfer_workers = [
-        {"id": str(uuid.uuid4()), "pnr": w["pnr"], "rolle": w["rolle"]}
+        {"id": str(uuid.uuid4()), "pnr": w["pnr"], "rolle": w["rolle"],
+         "anzahl": int(w.get("anzahl") or 1), "sammel": bool(w.get("sammel"))}
         for w in active_workers
     ]
 
@@ -852,6 +941,7 @@ def admin_edit_worker(body: WorkerEditIn):
     if body.ende   is not None: fields["ende"]   = body.ende
     if body.pause  is not None: fields["pause"]  = body.pause
     if body.rolle  is not None: fields["rolle"]  = body.rolle
+    if body.anzahl is not None: fields["anzahl"] = validate_anzahl(body.anzahl)
     if fields:
         ts = int(time.time() * 1000)
         sets = ", ".join(f"{k}=:{k}" for k in fields)
@@ -895,19 +985,31 @@ def _build_auftrag_summary(rows: list) -> list:
                 "workers":      [],
                 "total_mh":     0.0,
                 "pnrs":         set(),
+                "sammel_koepfe": 0,
             }
         if r.get("mz_id"):
-            nh = _netto_h(r.get("mz_start"), r.get("mz_ende"), r.get("mz_pause"))
+            nh     = _netto_h(r.get("mz_start"), r.get("mz_ende"), r.get("mz_pause"))
+            anzahl = int(r.get("mz_anzahl") or 1)
+            sammel = bool(r.get("mz_sammel"))
             auftraege[aid]["workers"].append({
                 "pnr":    r["pnr"],
                 "rolle":  r["rolle"],
                 "start":  r.get("mz_start") or "",
                 "ende":   r.get("mz_ende") or "",
                 "pause":  r.get("mz_pause") or 0,
-                "netto_h": round(nh, 2),
+                "anzahl": anzahl,
+                "sammel": sammel,
+                "netto_h": round(nh, 2),                 # je Person
+                "netto_h_gesamt": round(nh * anzahl, 2),  # ueber alle Personen der Zeile
             })
-            auftraege[aid]["total_mh"] += nh
-            auftraege[aid]["pnrs"].add(r["pnr"])
+            # Stundensumme gewichtet: eine Sammelzeile mit 6 Personen zaehlt
+            # sechsfach. Kopfzahl analog - Sammelzeilen haben keine PNR, ueber
+            # die sie sich deduplizieren liessen, also werden sie addiert.
+            auftraege[aid]["total_mh"] += nh * anzahl
+            if sammel:
+                auftraege[aid]["sammel_koepfe"] += anzahl
+            else:
+                auftraege[aid]["pnrs"].add(r["pnr"])
 
     result = []
     for a in auftraege.values():
@@ -927,10 +1029,11 @@ def _build_auftrag_summary(rows: list) -> list:
             if a["gesamtstueck"] is None:
                 missing_fields.append("Gesamtstueck")
             for wk in a["workers"]:
+                lab = db.worker_label(wk)
                 if not wk.get("start"):
-                    missing_fields.append(f"Mitarbeiter {wk.get('pnr')}: Startzeit")
+                    missing_fields.append(f"{lab}: Startzeit")
                 if not wk.get("ende"):
-                    missing_fields.append(f"Mitarbeiter {wk.get('pnr')}: Endzeit")
+                    missing_fields.append(f"{lab}: Endzeit")
         result.append({
             "id":           a["id"],
             "auftragsnr":   a["auftragsnr"],
@@ -942,7 +1045,7 @@ def _build_auftrag_summary(rows: list) -> list:
             "auftrag_ende": a["auftrag_ende"],
             "gesamtstueck": a["gesamtstueck"],
             "status":       a["status"],
-            "anzahl_ma":    len(a["pnrs"]),
+            "anzahl_ma":    len(a["pnrs"]) + a["sammel_koepfe"],
             "total_mh":     round(mh, 2),
             "stueck_pro_mah": sph,
             "workers":      a["workers"],
@@ -996,9 +1099,14 @@ def export_csv(req: AuswertungRequest):
     buf = io.StringIO()
     buf.write("﻿")
     w = csv.writer(buf, delimiter=";")
+    # Spalte "Anzahl" (Personen je Zeile): bei Einzelpersonen immer 1, bei
+    # Sammelzeilen die erfasste Personenzahl. Netto_h bleibt der Wert JE
+    # PERSON, Netto_h_gesamt ist die Summe ueber die Zeile - nur letztere
+    # summiert sich zu den MA-Stunden der Auswertung auf.
     w.writerow([
         "Tag", "Datum", "Auftragsnr", "Kultur", "Topfgroesse", "Arbeit",
-        "Pers.nr.", "Rolle", "Start", "Ende", "Pause_h", "Netto_h",
+        "Pers.nr.", "Anzahl", "Rolle", "Start", "Ende", "Pause_h",
+        "Netto_h", "Netto_h_gesamt",
         "Gesamtstueck", "Stueck_pro_MA-Std", "Status",
     ])
     for a in summaries:
@@ -1008,14 +1116,18 @@ def export_csv(req: AuswertungRequest):
         except Exception:
             tag = ""
         for wk in (a["workers"] or [{"pnr": "—", "rolle": "—", "start": "", "ende": "",
-                                      "pause": 0, "netto_h": 0}]):
+                                      "pause": 0, "netto_h": 0, "netto_h_gesamt": 0,
+                                      "anzahl": "", "sammel": False}]):
             w.writerow([
                 tag, a["datum"], a["auftragsnr"],
                 a["kultur"], a["topfgroesse"], a["arbeit"],
-                wk["pnr"], wk["rolle"],
+                ("SAMMEL" if wk.get("sammel") else wk["pnr"]),
+                wk.get("anzahl", 1),
+                wk["rolle"],
                 wk.get("start", ""), wk.get("ende", ""),
                 str(wk.get("pause", 0)).replace(".", ","),
                 str(wk.get("netto_h", 0)).replace(".", ","),
+                str(wk.get("netto_h_gesamt", wk.get("netto_h", 0))).replace(".", ","),
                 a["gesamtstueck"] if a["gesamtstueck"] is not None else "",
                 str(a["stueck_pro_mah"] or "").replace(".", ","),
                 a["status"],

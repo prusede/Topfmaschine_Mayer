@@ -39,6 +39,16 @@
   let   _pendingCount = 0;
   let   _onStatusCb   = null;
   let   _lastOkMs = 0;
+  let   _blockedOps = [];
+
+  /* Statuscodes, bei denen ein erneuter Versuch NIE erfolgreich sein kann:
+     der Server hat die Operation inhaltlich abgelehnt (fehlende Berechtigung,
+     Zielobjekt weg, Regelverstoss). Solche Eintraege werden nach dem ersten
+     Fehlversuch geparkt statt endlos wiederholt - sie wuerden sonst alle
+     nachfolgenden, gueltigen Eintraege blockieren. 429 (Sperre nach zu vielen
+     Fehlversuchen) und 5xx gehoeren bewusst NICHT dazu. */
+  const _ENDGUELTIG = new Set([400, 403, 404, 409, 410, 422]);
+  const _MAX_VERSUCHE = 3;
 
   /* ── IndexedDB ──
      Jede Operation faengt Fehler ab und verwirft die gecachte Verbindung
@@ -153,16 +163,21 @@
     } catch (e) { return ""; }
   }
 
-  /* ── Pending-Status ── */
-  function _setPending(n) {
-    _pendingCount = n;
-    if (_onStatusCb) _onStatusCb(n, _lastOkMs);
+  /* ── Pending-Status ──
+     Blockierte Eintraege werden getrennt gezaehlt: sie warten nicht auf
+     Netz, sondern wurden vom Server inhaltlich abgelehnt und brauchen eine
+     Entscheidung. Die UI kann beides dadurch unterscheidbar anzeigen. */
+  function _setPending(n, blocked) {
+    _pendingCount  = n;
+    _blockedOps    = blocked || [];
+    if (_onStatusCb) _onStatusCb(n, _lastOkMs, _blockedOps);
   }
 
   async function _countPending() {
     const ops = await allOps().catch(() => []);
-    _setPending(ops.length);
-    return ops.length;
+    const blocked = ops.filter(o => o.blocked);
+    _setPending(ops.length, blocked);
+    return ops.length - blocked.length;   // nur das, was noch von selbst laufen kann
   }
 
   /* ── Outbox-Queue ─────────────────────────────────────────────────── */
@@ -175,7 +190,23 @@
     return r;
   }
 
+  /* qms/qseq: Einreihungszeitpunkt der Operation.
+     ---------------------------------------------------------------------
+     WICHTIG: IndexedDB getAll() liefert die Eintraege in Schluessel-
+     Reihenfolge zurueck - also alphabetisch nach opid. Die opid beginnt mit
+     einem Typ-Praefix ("acls-", "anew-", "dcls-", "scan-", "wupd-" ...),
+     wodurch die Warteschlange bisher NACH TYP statt nach Entstehungszeit
+     abgearbeitet wurde. Konkret lief "acls-" (Auftrag abschliessen) immer vor
+     "wupd-" (Mitarbeiter-Zeit aendern), auch wenn die Zeitaenderung zuerst
+     erfolgt war. Der Server lehnte die Aenderung dann mit
+     "Auftrag/Tag abgeschlossen - Aenderung nur im Admin-Modus" (HTTP 400) ab
+     und blockierte damit die gesamte restliche Warteschlange.
+     Seitdem wird vor dem Senden nach qms/qseq sortiert, also in der
+     Reihenfolge, in der die Aktionen tatsaechlich passiert sind. Altbestand
+     ohne diese Felder sortiert nach vorn (er ist ohnehin aelter). */
   function queueOp(op) {
+    op.qms  = Date.now();
+    op.qseq = ++_opSeq;
     return _enqueue(async () => {
       await putOp(op);
       await _countPending();
@@ -213,15 +244,83 @@
     return queueOp({ opid: "wdel-" + data.mz_id, type: "worker_delete", data });
   }
 
+  /* Serverantwort auf eine lesbare Kurzfassung eindampfen - der Rohtext ist
+     JSON wie {"detail":"Auftrag/Tag abgeschlossen – ..."}. */
+  function _kurzGrund(msg) {
+    const m = String(msg || "");
+    const j = m.match(/\{.*\}$/);
+    if (j) {
+      try {
+        const o = JSON.parse(j[0]);
+        const d = o.detail;
+        if (typeof d === "string") return d;
+        if (d && d.message) return d.message;
+      } catch (e) {}
+    }
+    return m.slice(0, 120);
+  }
+
+  /* ── Geparkte Eintraege ───────────────────────────────────────────── */
+  async function getBlockedOps() {
+    const ops = await allOps().catch(() => []);
+    return ops.filter(o => o.blocked).map(o => ({
+      opid:   o.opid,
+      type:   o.type,
+      grund:  _kurzGrund(o.lastError),
+      zeit:   o.qms || o.blockedMs || 0,
+      data:   o.data,
+    }));
+  }
+
+  /* Einen geparkten Eintrag erneut freigeben (z. B. nachdem der Tag wieder
+     geoeffnet oder der Auftrag korrigiert wurde). */
+  async function retryOp(opid) {
+    const ops = await allOps().catch(() => []);
+    const op  = ops.find(o => o.opid === opid);
+    if (!op) return false;
+    delete op.blocked; delete op.lastError; delete op.blockedMs;
+    op.fails = 0;
+    await putOp(op);
+    await _countPending();
+    forceSync();
+    return true;
+  }
+
+  async function retryAllBlocked() {
+    const ops = await allOps().catch(() => []);
+    for (const op of ops.filter(o => o.blocked)) {
+      delete op.blocked; delete op.lastError; delete op.blockedMs;
+      op.fails = 0;
+      await putOp(op).catch(() => {});
+    }
+    await _countPending();
+    return forceSync();
+  }
+
+  /* Endgueltig verwerfen - bewusst nur ueber die UI mit Bestaetigung
+     erreichbar, weil damit eine erfasste Aenderung verloren geht. */
+  async function discardOp(opid) {
+    await delOp(opid);
+    await _countPending();
+    return true;
+  }
+
   /* ── Sync-Loop ────────────────────────────────────────────────────── */
   async function runSync() {
     if (syncing || !online) return;
-    const ops = await allOps().catch(() => []);
-    if (!ops.length) { _setPending(0); return; }
+    let ops = await allOps().catch(() => []);
+    if (!ops.length) { _setPending(0, []); return; }
+
+    // Reihenfolge = Entstehungsreihenfolge, NICHT alphabetisch nach opid
+    // (siehe ausfuehrliche Begruendung bei queueOp).
+    ops.sort((a, b) => (a.qms || 0) - (b.qms || 0) || (a.qseq || 0) - (b.qseq || 0));
 
     syncing = true;
     try {
       for (const op of ops) {
+        // Geparkte Eintraege ueberspringen - sie warten auf eine Entscheidung
+        // des Nutzers und duerfen die uebrigen nicht aufhalten.
+        if (op.blocked) continue;
         try {
           switch (op.type) {
             case "auftrag_new":
@@ -258,29 +357,37 @@
           online = true;
           _lastOkMs = Date.now();
         } catch (e) {
+          const status = e && e.status;
           console.warn("Sync-Fehler:", op.type, e && e.message);
-          if (e && e.status === 404) {
-            // Zielobjekt existiert auf dem Server nicht mehr - z. B. weil ein
-            // anderes Geraet den Auftrag/Mitarbeiter bereits abgeschlossen
-            // oder geloescht hat. Ein Retry kann hier NIE erfolgreich werden
-            // und wuerde sonst alle nachfolgenden, eigentlich gueltigen
-            // Eintraege dauerhaft blockieren. Eintrag daher verwerfen statt
-            // endlos zu wiederholen - Verlust wird sichtbar gemeldet, statt
-            // still zu verschwinden.
-            console.error(`Sync verworfen (Ziel nicht mehr vorhanden): ${op.type} ${op.opid}`);
+          op.fails = (op.fails || 0) + 1;
+
+          // Inhaltliche Ablehnung durch den Server oder wiederholt
+          // gescheitert: Eintrag PARKEN statt loeschen. Er bleibt mit Grund
+          // erhalten und sichtbar, blockiert aber die uebrigen nicht mehr.
+          if (_ENDGUELTIG.has(status) || op.fails >= _MAX_VERSUCHE) {
+            op.blocked   = true;
+            op.lastError = (e && e.message) || "Unbekannter Fehler";
+            op.blockedMs = Date.now();
+            await putOp(op).catch(() => {});
+            console.error(`Sync geparkt: ${op.type} ${op.opid} – ${op.lastError}`);
             if (typeof toast === "function") {
-              toast(`Sync übersprungen: ${op.type} – Ziel existiert nicht mehr auf dem Server`, true);
+              toast(`Sync blockiert: ${op.type} – ${_kurzGrund(op.lastError)}`, true);
             }
-            await delOp(op.opid);
+            await _countPending();
             continue; // naechsten Eintrag in dieser Runde weiterverarbeiten
           }
-          online = false;
-          break; // andere Fehler (Netzwerk, Server 5xx) - Reihenfolge wahren, spaeter nochmal
+
+          await putOp(op).catch(() => {});
+          // Nur echte Verbindungsprobleme gelten als "offline". Ein 4xx/5xx
+          // bedeutet, dass der Server erreichbar ist - ihn hier als offline zu
+          // markieren hat den Sync-Loop zusaetzlich schlafen gelegt.
+          if (!status || status >= 500) online = false;
+          break; // Reihenfolge wahren, spaeter erneut versuchen
         }
       }
     } finally {
       syncing = false;
-      const remaining = await _countPending();
+      const remaining = await _countPending();   // ohne geparkte Eintraege
       if (remaining) {
         // Selbst-Reschedule bei verbleibendem Rueckstand - abgesichert durch
         // die Watchdogs unten, falls dieser eine geplante Aufruf doch einmal
@@ -392,7 +499,12 @@
     adminVerify,
     auswertungVerify,
     getPendingCount: () => _pendingCount,
+    getBlockedCount: () => _blockedOps.length,
     getLastSyncOk: () => _lastOkMs,
+    getBlockedOps,
+    retryOp,
+    retryAllBlocked,
+    discardOp,
     onStatus: (cb) => { _onStatusCb = cb; },
     runSync,
   };

@@ -70,6 +70,11 @@ CREATE INDEX IF NOT EXISTS idx_auftraege_datum  ON auftraege(datum);
 CREATE INDEX IF NOT EXISTS idx_auftraege_status ON auftraege(status);
 CREATE INDEX IF NOT EXISTS idx_auftraege_nr     ON auftraege(auftragsnr);
 
+-- anzahl/sammel: Sammelzeilen fuer mehrere Personen ohne einzelne
+-- Personalnummer. Eine Einzelperson ist schlicht anzahl=1, sammel=0 - die
+-- gesamte uebrige Logik bleibt dadurch identisch. Bei sammel=1 ist pnr leer
+-- und anzahl gibt die Personenzahl an; alle Stundensummen rechnen
+-- netto_h * anzahl.
 CREATE TABLE IF NOT EXISTS mitarbeiter_zeiten (
     id              TEXT PRIMARY KEY,
     auftrag_id      TEXT NOT NULL,
@@ -78,6 +83,8 @@ CREATE TABLE IF NOT EXISTS mitarbeiter_zeiten (
     start           TEXT DEFAULT '',
     ende            TEXT DEFAULT '',
     pause           REAL DEFAULT 0,
+    anzahl          INTEGER DEFAULT 1,
+    sammel          INTEGER DEFAULT 0,
     created_ms      INTEGER NOT NULL,
     updated_ms      INTEGER NOT NULL,
     FOREIGN KEY(auftrag_id) REFERENCES auftraege(id) ON DELETE CASCADE
@@ -103,7 +110,22 @@ CREATE TABLE IF NOT EXISTS tagesabschluesse (
 );
 """
 
-_MIGRATIONS: list = []
+# anzahl/sammel: nachtraeglich ergaenzte Spalten fuer Sammelzeilen (siehe
+# SCHEMA). SQLite fuellt bei ALTER TABLE ADD COLUMN mit konstantem DEFAULT die
+# bestehenden Zeilen auf - Altdaten bleiben damit rechnerisch unveraendert
+# (anzahl=1, sammel=0). Die UPDATEs darunter sind nur eine Absicherung fuer den
+# Fall, dass eine Spalte in einer aelteren Installation ohne Default entstand.
+# closed_ms: Zeitpunkt des Auftragsabschlusses. Wird gebraucht, um eine
+# verspaetet eintreffende Aenderung (offline erfasst, VOR dem Abschluss) von
+# einer nachtraeglichen Korrektur unterscheiden zu koennen - siehe
+# main.py update_worker.
+_MIGRATIONS: list = [
+    "ALTER TABLE mitarbeiter_zeiten ADD COLUMN anzahl INTEGER DEFAULT 1",
+    "ALTER TABLE mitarbeiter_zeiten ADD COLUMN sammel INTEGER DEFAULT 0",
+    "UPDATE mitarbeiter_zeiten SET anzahl=1 WHERE anzahl IS NULL",
+    "UPDATE mitarbeiter_zeiten SET sammel=0 WHERE sammel IS NULL",
+    "ALTER TABLE auftraege ADD COLUMN closed_ms INTEGER",
+]
 
 
 def _run_migrations(conn):
@@ -188,18 +210,34 @@ def _missing_fields(a: dict, require_closed: bool = False) -> list:
     return missing
 
 
+def worker_label(m: dict) -> str:
+    """Bezeichnung eines Zeiteintrags fuer Fehlermeldungen - eine Sammelzeile
+    hat keine Personalnummer, ueber die man sie benennen koennte."""
+    if m.get("sammel"):
+        return f"Sammelzeile ({int(m.get('anzahl') or 0)} Pers.)"
+    return f"Mitarbeiter {m.get('pnr') or m.get('id')}"
+
+
 def _incomplete_workers(a: dict, require_end: bool = False) -> list:
     result = []
     for m in a.get("mitarbeiter", []):
         fields = []
-        if not m.get("pnr"):
+        if m.get("sammel"):
+            # Sammelzeile: statt der Personalnummer ist die Personenzahl das
+            # Pflichtfeld, sonst identische Anforderungen.
+            if not m.get("anzahl") or int(m.get("anzahl") or 0) < 1:
+                fields.append("Personenanzahl")
+        elif not m.get("pnr"):
             fields.append("Personalnummer")
         if not m.get("start"):
             fields.append("Startzeit")
         if require_end and not m.get("ende"):
             fields.append("Endzeit")
         if fields:
-            result.append({"id": m.get("id"), "pnr": m.get("pnr", ""), "missing": fields})
+            result.append({"id": m.get("id"), "pnr": m.get("pnr", ""),
+                           "sammel": int(m.get("sammel") or 0),
+                           "anzahl": int(m.get("anzahl") or 1),
+                           "label": worker_label(m), "missing": fields})
     return result
 
 
@@ -332,9 +370,9 @@ def neue_kultur_atomic(old_auftrag_id: str, auftrag_ende: str, gesamtstueck: int
         c.execute("""
             UPDATE auftraege
             SET status='abgeschlossen', auftrag_ende=?, gesamtstueck=?,
-                updated_ms=?, changed_by=?
+                closed_ms=?, updated_ms=?, changed_by=?
             WHERE id=?
-        """, (auftrag_ende, gesamtstueck, ts, closed_by, old_auftrag_id))
+        """, (auftrag_ende, gesamtstueck, ts, ts, closed_by, old_auftrag_id))
 
         new_data = dict(new_data)
         new_data["ts"] = ts
@@ -344,11 +382,13 @@ def neue_kultur_atomic(old_auftrag_id: str, auftrag_ende: str, gesamtstueck: int
         for w in transfer_workers:
             c.execute("""
                 INSERT INTO mitarbeiter_zeiten
-                  (id, auftrag_id, pnr, rolle, start, ende, pause, created_ms, updated_ms)
-                VALUES (?,?,?,?,?,?,?,?,?)
+                  (id, auftrag_id, pnr, rolle, start, ende, pause, anzahl, sammel,
+                   created_ms, updated_ms)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
             """, (w["id"], new_data["id"], w["pnr"], w["rolle"],
-                  new_data.get("auftrag_start", ""), "", 0, ts, ts))
-            transferred.append(w["pnr"])
+                  new_data.get("auftrag_start", ""), "", 0,
+                  int(w.get("anzahl") or 1), 1 if w.get("sammel") else 0, ts, ts))
+            transferred.append(w["pnr"] or f"SAMMEL x{int(w.get('anzahl') or 1)}")
         c.commit()
     return auftragsnr, transferred
 
@@ -382,9 +422,9 @@ def close_auftrag(auftrag_id: str, auftrag_ende: str, gesamtstueck: int,
         c.execute("""
             UPDATE auftraege
             SET status='abgeschlossen', auftrag_ende=?, gesamtstueck=?,
-                updated_ms=?, changed_by=?
+                closed_ms=?, updated_ms=?, changed_by=?
             WHERE id=?
-        """, (auftrag_ende, gesamtstueck, ts, changed_by, auftrag_id))
+        """, (auftrag_ende, gesamtstueck, ts, ts, changed_by, auftrag_id))
         c.commit()
 
 
@@ -394,12 +434,15 @@ def upsert_mitarbeiter(data: dict):
     with get_conn() as c:
         c.execute("""
             INSERT INTO mitarbeiter_zeiten
-              (id, auftrag_id, pnr, rolle, start, ende, pause, created_ms, updated_ms)
+              (id, auftrag_id, pnr, rolle, start, ende, pause, anzahl, sammel,
+               created_ms, updated_ms)
             VALUES
-              (:id, :auftrag_id, :pnr, :rolle, :start, :ende, :pause, :created_ms, :updated_ms)
+              (:id, :auftrag_id, :pnr, :rolle, :start, :ende, :pause, :anzahl, :sammel,
+               :created_ms, :updated_ms)
             ON CONFLICT(id) DO UPDATE SET
               rolle=excluded.rolle, start=excluded.start, ende=excluded.ende,
-              pause=excluded.pause, updated_ms=excluded.updated_ms
+              pause=excluded.pause, anzahl=excluded.anzahl, sammel=excluded.sammel,
+              updated_ms=excluded.updated_ms
             WHERE excluded.updated_ms >= mitarbeiter_zeiten.updated_ms
         """, {
             "id":         data["id"],
@@ -409,6 +452,8 @@ def upsert_mitarbeiter(data: dict):
             "start":      data.get("start", ""),
             "ende":       data.get("ende", ""),
             "pause":      data.get("pause", 0),
+            "anzahl":     int(data.get("anzahl") or 1),
+            "sammel":     1 if data.get("sammel") else 0,
             "created_ms": data.get("created_ms", ts),
             "updated_ms": data.get("updated_ms", ts),
         })
@@ -444,7 +489,9 @@ def get_auftraege_flat(datum_von: str, datum_bis: str) -> list:
                 mz.pnr,  mz.rolle,
                 mz.start AS mz_start,
                 mz.ende  AS mz_ende,
-                mz.pause AS mz_pause
+                mz.pause AS mz_pause,
+                mz.anzahl AS mz_anzahl,
+                mz.sammel AS mz_sammel
             FROM auftraege a
             LEFT JOIN mitarbeiter_zeiten mz ON mz.auftrag_id = a.id
             WHERE a.datum BETWEEN ? AND ?
