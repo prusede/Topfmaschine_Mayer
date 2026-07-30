@@ -9,9 +9,12 @@ bewusst: logo_poller.py, /api/zaehler/*, /api/auswertung/zaehler sowie die
 zugehoerigen DB-Tabellen (siehe app/db.py).
 
 Sicherheit:
-- TM_ADMIN_PW muss beim Start gesetzt sein.
-- Alle Admin-Endpunkte pruefen das Passwort serverseitig.
-- Brute-Force-Lockout: 10 Fehlversuche -> 30s Sperre.
+- Zugriffsrechte kommen ausschliesslich aus der zentralen Benutzerverwaltung
+  (Auth-Dienst auf 8451). Rollen je Anwendung: auswerter, meister, admin.
+- Einmal anmelden genuegt; ein zweites Passwort fuer Aenderungen gibt es nicht.
+- Der Scanbetrieb laeuft weiterhin ohne Anmeldung, auch ueber HTTP 8084.
+- Geteilte Passwoerter gibt es nicht mehr; die Fehlversuchssperre liegt im
+  Auth-Dienst.
 - Namen werden nicht gespeichert (DSGVO).
 """
 import io
@@ -22,28 +25,38 @@ import sys
 import time
 import hmac
 import secrets
-import threading
 import uuid
 from datetime import datetime, date
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import (
+    HTMLResponse,
+    StreamingResponse,
+    FileResponse,
+    RedirectResponse,
+)
 from pydantic import BaseModel, Field
 from typing import Optional, List, Any
+
+import erfassung_auth as auth
 
 from app import db
 
 # ── Startup-Sicherheitspruefung ──────────────────────────────────────────────
-ADMIN_PW   = os.environ.get("TM_ADMIN_PW", "")
-VIEWER_PW  = os.environ.get("TM_VIEWER_PW", "")
-_WEAK      = {"", "dominik", "admin", "test", "test123", "123456",
-              "passwort", "password", "1234", "hallo", "topf", "maschine"}
+# An dieser Stelle stand bis zur Umstellung die Pruefung auf TM_ADMIN_PW. Es gibt
+# keine geteilten Passwoerter mehr. Was jetzt zaehlt, ist das Verzeichnis mit
+# den oeffentlichen Schluesseln: fehlt es, kann die Anwendung keine Sitzung mehr
+# pruefen und waere fuer Auswertung und Admin-Funktionen still tot. Ein klarer
+# Abbruch beim Start ist besser als ein unerklaerliches 403 im Betrieb.
+_KEY_DIR = os.environ.get("AUTH_PUBLIC_KEY_DIR", "/etc/erfassung-auth/public")
 
-if ADMIN_PW.lower() in _WEAK:
+if not (os.path.isdir(_KEY_DIR) and any(
+        n.endswith(".pem") for n in os.listdir(_KEY_DIR))):
     print(
         "\n" + "=" * 60 + "\n"
-        "FEHLER: TM_ADMIN_PW ist nicht gesetzt oder zu schwach.\n"
-        "Bitte setzen: export TM_ADMIN_PW=MeinSicheresPasswort\n"
+        f"FEHLER: kein oeffentlicher Schluessel in {_KEY_DIR}.\n"
+        "Ohne ihn kann keine Anmeldung geprueft werden.\n"
+        "Auf dem CT anlegen mit gen_keys.sh aus erfassung_auth_dienst.\n"
         + "=" * 60 + "\n",
         file=sys.stderr,
     )
@@ -68,53 +81,73 @@ SAMMEL_MAX  = 20
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="Topfmaschine Mayer – Erfassung")
+
+# Zentrale Anmeldung. Die Middleware liest die Cookies und stellt eine Identitaet
+# bereit; ausgestellt werden die Tokens allein vom Auth-Dienst.
+AUTH_CFG = auth.AuthConfig(
+    app_key="topfmaschine_mayer",
+    allowed_origins=[os.environ.get("TM_ORIGIN", "https://10.10.0.210:8447")],
+    # Gleicher Variablenname wie im Auth-Dienst. Im Betrieb bleibt es beim
+    # Vorgabewert; die Tests legen sich ein eigenes Verzeichnis an.
+    public_key_dir=_KEY_DIR,
+    legacy_enabled=False,
+)
+auth.install(app, AUTH_CFG)
+
 db.init_db()
 
 BASE   = os.path.dirname(__file__)
 STATIC = os.path.join(BASE, "static")
 
-# ── Auth / Brute-Force-Schutz ─────────────────────────────────────────────────
-_LOCK_AFTER   = 10
-_LOCK_SECONDS = 30
-_auth_lock    = threading.Lock()
-_auth_fails   = 0
-_auth_blocked_until = 0.0
+# ── Torwaechter ───────────────────────────────────────────────────────────────
+#
+# Rechte kommen ausschliesslich aus der Benutzerverwaltung. Der Parameter pw
+# bleibt in den Signaturen stehen, damit die Aufrufstellen unveraendert bleiben;
+# ausgewertet wird er nirgends mehr. Das Feld pw in den Modellen bleibt
+# ebenfalls, damit ein noch nicht neu geladener Tablet-Browser keinen 422
+# bekommt.
+#
+# Ueber HTTP (Port 8084, Scanbetrieb) erreicht das __Host--Cookie den Server
+# nie. Geschuetzte Endpunkte antworten dort mit 403 -- das ist die gewollte
+# Aufgabenteilung, kein Mangel: angemeldet wird ausschliesslich ueber HTTPS
+# 8447, gescannt ausschliesslich ueber HTTP 8084.
 
 
-def _get_role(pw: str) -> Optional[str]:
-    global _auth_fails, _auth_blocked_until
-    if not pw:
-        return None
-    with _auth_lock:
-        now = time.time()
-        if now < _auth_blocked_until:
-            wait = int(_auth_blocked_until - now) + 1
-            raise HTTPException(429, f"Zu viele Fehlversuche – bitte {wait} s warten")
-        if hmac.compare_digest(pw, ADMIN_PW):
-            _auth_fails = 0
-            return "admin"
-        if VIEWER_PW and hmac.compare_digest(pw, VIEWER_PW):
-            _auth_fails = 0
-            return "viewer"
-        _auth_fails += 1
-        if _auth_fails >= _LOCK_AFTER:
-            _auth_blocked_until = now + _LOCK_SECONDS
-            _auth_fails = 0
-        return None
+def check_admin(pw: str = ""):
+    """Aendernd: Rolle meister oder admin. Kein zweites Passwort.
+
+    Das Step-up aus Vorgabe 3 des Konzepts ist wie bei Stolze abgeschaltet
+    (Entscheidung 30.07.2026). Es haette bedeutet, dass die Aufsicht sich
+    anmeldet und danach fuer jede Korrektur ein zweites Mal ihr Passwort
+    eingibt -- eine Abfrage mehr als vor der Umstellung.
+
+    Was den Schutz traegt, ist die kurze Sitzung: in der Erfassung laeuft sie
+    nach spaetestens 60 Minuten ab und erneuert sich dort nicht von selbst."""
+    auth.require("meister")
 
 
-def check_admin(pw: str):
-    if _get_role(pw) != "admin":
-        raise HTTPException(403, "Falsches Passwort")
+def check_viewer(pw: str = ""):
+    """Lesend: jede Rolle fuer diese Anwendung genuegt."""
+    auth.require("auswerter")
 
 
-def check_viewer(pw: str):
-    if _get_role(pw) is None:
-        raise HTTPException(403, "Falsches Passwort")
+def _admin_ok(pw: str = "") -> bool:
+    """Weiche Pruefung fuer Endpunkte, die erst im gesperrten Zustand ein Recht
+    verlangen (abgeschlossener Auftrag, abgeschlossener Tag). Ohne Sperre laeuft
+    der Aufruf weiterhin ohne Anmeldung durch."""
+    return auth.role() in ("meister", "admin")
 
 
-def _admin_ok(pw: str) -> bool:
-    return _get_role(pw) == "admin"
+def _nur_admin():
+    """Dem Admin vorbehalten: das Audit-Protokoll. Es ist das Mittel, mit dem
+    Korrekturen kontrolliert werden, und gehoert nicht in dieselbe Hand wie die
+    Korrektur selbst. Nachtraeglich bearbeiten darf auch der Meister."""
+    auth.require("admin")
+
+
+def _ueber_https(request: Request) -> bool:
+    """Caddy setzt X-Forwarded-Proto; der direkte Zugang auf 8084 nicht."""
+    return request.headers.get("x-forwarded-proto", "").lower() == "https"
 
 
 _ACTION_SECRET = secrets.token_bytes(32)
@@ -136,14 +169,16 @@ def _day_token(datum: str) -> str:
     return hmac.new(_ACTION_SECRET, f"day|{datum}".encode("utf-8"), "sha256").hexdigest()[:32]
 
 
-def _actor(pw: str) -> str:
-    """Rollen-Marker fuers Audit-Log. Absichtlich OHNE Passwort-Zeichen -
-    vorher wurden die ersten 2 Zeichen des eingegebenen Passworts im Log
-    gespeichert (Informationsleck bei kurzen/vorhersehbaren Passwoertern)."""
-    if not pw:
-        return "user"
-    role = _get_role(pw)
-    return role or "unknown"
+def _actor(pw: str = "") -> str:
+    """Eintrag fuer die Spalte actor im Audit-Log.
+
+    Angemeldet: der Anmeldename -- der eigentliche Zweck des Vorhabens, weil im
+    Protokoll damit steht, wer gehandelt hat, und nicht nur welche Rolle.
+
+    Der Rueckfall 'system' greift nur noch bei den offenen Endpunkten, die
+    bewusst ohne Anmeldung laufen (Scannen, Auftrag anlegen und schliessen,
+    Kulturwechsel, Zeiten eintragen, Tagesabschluss)."""
+    return auth.actor("system")
 
 
 # ── Validierung ───────────────────────────────────────────────────────────────
@@ -279,7 +314,8 @@ def _nowHM() -> str:
 
 # ── Pydantic-Modelle ──────────────────────────────────────────────────────────
 class PwAction(BaseModel):
-    pw: str
+    # Bleibt fuer Bestandsclients erhalten, wird aber nicht mehr ausgewertet.
+    pw: str = ""
 
 
 class AuftragNewIn(BaseModel):
@@ -330,13 +366,15 @@ class WorkerUpdateIn(BaseModel):
 
 
 class WorkerDeleteIn(BaseModel):
-    pw: str
+    # Bleibt fuer Bestandsclients erhalten, wird aber nicht mehr ausgewertet.
+    pw: str = ""
     mz_id: str
     auftrag_id: str = ""
 
 
 class AuftragDeleteIn(BaseModel):
-    pw: str
+    # Bleibt fuer Bestandsclients erhalten, wird aber nicht mehr ausgewertet.
+    pw: str = ""
     auftrag_id: str
 
 
@@ -365,7 +403,8 @@ class NeueKulturIn(BaseModel):
 
 
 class AuftragEditIn(BaseModel):
-    pw: str
+    # Bleibt fuer Bestandsclients erhalten, wird aber nicht mehr ausgewertet.
+    pw: str = ""
     auftrag_id: str
     arbeit: Optional[str] = Field(default=None, max_length=200)
     kultur: Optional[int] = None
@@ -379,10 +418,15 @@ class AuftragEditIn(BaseModel):
 
 
 class WorkerEditIn(BaseModel):
-    pw: str
+    # Bleibt fuer Bestandsclients erhalten, wird aber nicht mehr ausgewertet.
+    pw: str = ""
     mz_id: str
     auftrag_id: str = ""
+    # Personalnummer richtigstellen. Nur hier moeglich, nicht ueber den fuer
+    # den Scanbetrieb offenen /api/worker/update.
+    pnr: Optional[str] = None
     start: Optional[str] = None
+    # Leerer Wert heisst "wieder anmelden" -- die Endzeit faellt weg.
     ende: Optional[str] = None
     pause: Optional[float] = None
     rolle: Optional[str] = None
@@ -390,13 +434,15 @@ class WorkerEditIn(BaseModel):
 
 
 class AuswertungRequest(BaseModel):
-    pw: str
+    # Bleibt fuer Bestandsclients erhalten, wird aber nicht mehr ausgewertet.
+    pw: str = ""
     von: str
     bis: str
 
 
 class AuditRequest(BaseModel):
-    pw: str
+    # Bleibt fuer Bestandsclients erhalten, wird aber nicht mehr ausgewertet.
+    pw: str = ""
     limit: int = 200
 
 
@@ -507,7 +553,16 @@ def index():
 
 
 @app.get("/auswertung")
-def auswertung_page():
+def auswertung_page(request: Request):
+    """Serverseitig geschuetzt, seit der Passwortweg entfallen ist.
+
+    Ueber HTTP zuerst auf den HTTPS-Zugang umleiten: eine Anmeldeseite auf 8084
+    waere sinnlos, weil das __Host--Cookie diesen Port nie erreicht."""
+    if not _ueber_https(request):
+        return RedirectResponse("https://10.10.0.210:8447/auswertung", status_code=307)
+    redirect = auth.guard_page(request, AUTH_CFG)   # verlangt mindestens auswerter
+    if redirect:
+        return redirect
     return FileResponse(os.path.join(STATIC, "auswertung.html"))
 
 
@@ -576,9 +631,9 @@ def create_new_auftrag(body: AuftragNewIn):
         "topfgroesse":  validate_topfgroesse(body.topfgroesse),
         "auftrag_start": validate_time(body.auftrag_start, "Auftragsstart") or _nowHM(),
         "sonst":        body.sonst,
-        "changed_by":   body.changed_by or "user",
+        "changed_by":   _actor(),
     })
-    db.log_audit("auftrag_new", body.changed_by or "user", body.id,
+    db.log_audit("auftrag_new", _actor(), body.id,
                  f"auftragsnr={auftragsnr},datum={body.datum}")
     return {"ok": True, "auftrag_id": body.id, "auftragsnr": auftragsnr}
 
@@ -609,7 +664,7 @@ def update_auftrag(body: AuftragUpdateIn):
         if body.gesamtstueck < 0:
             raise HTTPException(400, "Gesamtstueckzahl muss >= 0 sein")
         fields["gesamtstueck"] = body.gesamtstueck
-    fields["changed_by"] = _actor(body.pw) if body.pw else "user"
+    fields["changed_by"] = _actor()
     db.update_auftrag(body.auftrag_id, fields)
     return {"ok": True}
 
@@ -653,9 +708,9 @@ def scan_worker(body: ScanIn):
         "updated_ms": ts,
     })
     if body.sammel:
-        db.log_audit("sammel_add", "user", body.auftrag_id, f"anzahl={anzahl},start={start}")
+        db.log_audit("sammel_add", _actor(), body.auftrag_id, f"anzahl={anzahl},start={start}")
     elif body.rolle == "aufsicht":
-        db.log_audit("aufsicht_add", "user", body.auftrag_id, f"pnr={pnr},start={start}")
+        db.log_audit("aufsicht_add", _actor(), body.auftrag_id, f"pnr={pnr},start={start}")
     return {"ok": True, "pnr": pnr, "rolle": body.rolle,
             "anzahl": anzahl, "sammel": bool(body.sammel)}
 
@@ -704,7 +759,7 @@ def update_worker(body: WorkerUpdateIn):
         c.execute(f"UPDATE mitarbeiter_zeiten SET {sets}, updated_ms=:ts WHERE id=:mz_id",
                   fields)
         c.commit()
-    db.log_audit("worker_update", _actor(body.pw) if body.pw else "user", body.mz_id,
+    db.log_audit("worker_update", _actor(), body.mz_id,
                  f"auftrag={mz['auftrag_id']},locked={locked},"
                  f"nachzuegler={nachzuegler},fields={list(fields.keys())}")
     return {"ok": True}
@@ -754,8 +809,8 @@ def close_auftrag(body: AuftragCloseIn):
 
     db.set_all_active_workers_ende(body.auftrag_id, body.auftrag_ende)
     db.close_auftrag(body.auftrag_id, body.auftrag_ende, body.gesamtstueck,
-                     _actor(body.pw) if body.pw else "user")
-    db.log_audit("auftrag_close", _actor(body.pw) if body.pw else "user",
+                     _actor())
+    db.log_audit("auftrag_close", _actor(),
                  body.auftrag_id,
                  f"ende={body.auftrag_ende},stueck={body.gesamtstueck}")
     return {"ok": True}
@@ -816,7 +871,7 @@ def neue_kultur(body: NeueKulturIn):
     # bei Fehler/Neustart moeglich.
     auftragsnr, transferred = db.neue_kultur_atomic(
         body.auftrag_id, body.auftrag_ende, body.gesamtstueck,
-        _actor(body.pw) if body.pw else "system",
+        _actor(),
         {
             "id":           body.new_auftrag_id,
             "datum":        body.datum,
@@ -825,12 +880,12 @@ def neue_kultur(body: NeueKulturIn):
             "kultur_frei":  body.kultur_frei,
             "topfgroesse":  validate_topfgroesse(body.topfgroesse),
             "auftrag_start": new_start,
-            "changed_by":   "system",
+            "changed_by":   _actor(),
         },
         transfer_workers,
     )
 
-    db.log_audit("neue_kultur", _actor(body.pw) if body.pw else "system",
+    db.log_audit("neue_kultur", _actor(),
                  body.new_auftrag_id,
                  f"von={body.auftrag_id},stueck={body.gesamtstueck},"
                  f"uebernommen={len(transferred)},nr={auftragsnr}")
@@ -876,7 +931,7 @@ def day_close(body: DayCloseIn):
     problems = _day_close_problems(body.datum)
     if problems:
         raise HTTPException(400, {"message": "Tagesabschluss nicht moeglich", "problems": problems})
-    actor = _actor(body.pw) if body.pw else "user"
+    actor = _actor()
     db.close_day(body.datum, actor)
     db.log_audit("day_close", actor, body.datum, "alle Auftraege vollstaendig")
     return {"ok": True, "datum": body.datum}
@@ -910,7 +965,7 @@ def auswertung_verify(body: PwAction):
 
 @app.post("/api/admin/auftrag/edit")
 def admin_edit_auftrag(body: AuftragEditIn):
-    """Admin: Korrektur eines abgeschlossenen oder offenen Auftrags."""
+    """Korrektur eines abgeschlossenen oder offenen Auftrags. Ab meister."""
     check_admin(body.pw)
     auftrag = db.get_auftrag_by_id(body.auftrag_id)
     if not auftrag:
@@ -934,14 +989,57 @@ def admin_edit_auftrag(body: AuftragEditIn):
 
 @app.post("/api/admin/worker/edit")
 def admin_edit_worker(body: WorkerEditIn):
-    """Admin: Korrektur einzelner Mitarbeiter-Zeiten."""
+    """Korrektur einzelner Mitarbeiter-Zeilen. Ab meister.
+
+    Deckt seit dem 30.07.2026 auch die beiden Faelle ab, die vorher gar nicht
+    gingen: eine falsch erfasste Personalnummer richtigstellen und einen zu
+    frueh abgemeldeten Mitarbeiter wieder anmelden (ende leeren). Beides
+    ausschliesslich hier und nicht in /api/worker/update -- der Endpunkt ist
+    fuer den Scanbetrieb ohne Anmeldung offen und darf keine Personalnummer
+    umschreiben koennen.
+    """
     check_admin(body.pw)
+    mz = db.get_mitarbeiter_by_id(body.mz_id)
+    if mz is None:
+        raise HTTPException(404, "Mitarbeiter-Eintrag nicht gefunden")
+
     fields: dict = {}
-    if body.start  is not None: fields["start"]  = body.start
-    if body.ende   is not None: fields["ende"]   = body.ende
-    if body.pause  is not None: fields["pause"]  = body.pause
-    if body.rolle  is not None: fields["rolle"]  = body.rolle
+
+    if body.pnr is not None:
+        if mz.get("sammel"):
+            raise HTTPException(400, "Eine Sammelzeile hat keine Personalnummer")
+        neu = validate_pnr(body.pnr)
+        # Dieselbe Nummer zweimal im selben Auftrag waere eine stille
+        # Doppelerfassung -- die Stundensumme stimmte danach nicht mehr.
+        auftrag_id = mz.get("auftrag_id") or body.auftrag_id
+        auftrag = db.get_auftrag_by_id(auftrag_id) or {}
+        for m in auftrag.get("mitarbeiter", []):
+            if m.get("id") != body.mz_id and str(m.get("pnr") or "") == neu:
+                raise HTTPException(
+                    400, f"Personalnummer {neu} ist in diesem Auftrag bereits erfasst")
+        fields["pnr"] = neu
+
+    if body.start  is not None: fields["start"]  = validate_time(body.start, "start")
+    if body.rolle  is not None: fields["rolle"]  = validate_rolle(body.rolle)
     if body.anzahl is not None: fields["anzahl"] = validate_anzahl(body.anzahl)
+
+    if body.ende is not None:
+        # Leerer Wert heisst "wieder anmelden": die Endzeit faellt weg, der
+        # Mitarbeiter zaehlt wieder als anwesend. Die Pause muss dann mit,
+        # sonst bliebe die automatisch gesetzte Pause einer Arbeitszeit
+        # stehen, die es nicht mehr gibt.
+        ende = (body.ende or "").strip()
+        fields["ende"] = validate_time(ende, "ende") if ende else ""
+        if not ende and body.pause is None:
+            fields["pause"] = 0
+
+    if body.pause is not None:
+        fields["pause"] = validate_pause(
+            body.pause,
+            fields.get("start", mz.get("start", "")),
+            fields.get("ende", mz.get("ende", "")),
+        )
+
     if fields:
         ts = int(time.time() * 1000)
         sets = ", ".join(f"{k}=:{k}" for k in fields)
@@ -953,14 +1051,18 @@ def admin_edit_worker(body: WorkerEditIn):
                 fields,
             )
             c.commit()
+    # Die alte Personalnummer gehoert ins Protokoll, sonst laesst sich eine
+    # Korrektur nachtraeglich nicht mehr nachvollziehen.
+    vorher = f",vorher_pnr={mz.get('pnr')}" if "pnr" in fields else ""
     db.log_audit("admin_worker_edit", _actor(body.pw), body.mz_id,
-                 f"auftrag={body.auftrag_id},{fields}")
+                 f"auftrag={body.auftrag_id},{fields}{vorher}")
     return {"ok": True}
 
 
 @app.post("/api/audit")
 def audit_log_view(req: AuditRequest):
     check_admin(req.pw)
+    _nur_admin()
     return db.get_audit_log(req.limit)
 
 

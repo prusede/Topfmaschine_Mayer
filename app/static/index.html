@@ -180,6 +180,11 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
 .btn-auftrag-abschliessen:disabled{background:var(--paper-line);color:var(--ink-soft);cursor:not-allowed;box-shadow:none;}
 .neuer-auftrag-hint{font-size:.8rem;color:var(--danger);margin-top:6px;display:none;}
 .neuer-auftrag-hint.show{display:block;}
+/* Kopfzeile: angemeldeter Benutzer */
+.user-badge{color:#fff;font-size:.82rem;font-weight:600;white-space:nowrap;opacity:.92;}
+.btn-user{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:6px 12px;font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;}
+.btn-user:hover{background:rgba(255,255,255,.24);}
+
 /* Admin-Login-Leiste – immer sichtbar */
 .admin-login-bar{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 8px;}
 .btn-admin-login{border:1.5px solid var(--paper-line);background:#fff;color:var(--ink-soft);border-radius:9px;padding:10px 18px;font-size:.9rem;font-weight:600;cursor:pointer;}
@@ -253,9 +258,12 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
   <div class="brand">DOMINIK</div>
   <div class="title">Topfmaschine Mayer</div>
   <span id="syncBadge" title="Klick = jetzt synchronisieren" style="cursor:pointer">● Synchron</span>
-  <span class="admin-badge" id="adminBadge">🔓 Admin · <span id="adminTimer"></span></span>
+  <span class="admin-badge" id="adminBadge"></span>
   <div class="spacer"></div>
-  <a class="machine-switch-link" href="http://10.10.0.210:8083/" title="Zur Stolze-Erfassung wechseln">⇄ Stolze</a>
+  <span class="user-badge" id="userBadge"></span>
+  <button class="btn-user" id="btnAnmelden">Anmelden</button>
+  <button class="btn-user" id="btnSitzungEnde" style="display:none">Sitzung beenden</button>
+  <a class="machine-switch-link" href="https://10.10.0.210:8446/" title="Zur Stolze-Erfassung wechseln">⇄ Stolze</a>
   <input class="session-field" id="fService" placeholder="Aufsicht-PNR P1001–P99999" type="text" inputmode="text" maxlength="6" autocomplete="off" />
   <input class="session-field" id="fDatum" style="min-width:110px" readonly />
 </header>
@@ -263,7 +271,7 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
 <main>
   <!-- Tag-Abgeschlossen-Banner -->
   <div class="day-closed-banner" id="dayClosedBanner">
-    🔒 Tag abgeschlossen – Erfassung gesperrt. Korrekturen nur noch mit Admin-Passwort.
+    🔒 Tag abgeschlossen – Erfassung gesperrt. Korrekturen nur noch mit Schreibrechten.
   </div>
   <!-- Sperr-Banner: fehlt Aufsicht-PNR -->
   <div class="lock-banner" id="lockBanner">
@@ -373,7 +381,9 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
 
   <!-- Admin-Login-Leiste – immer sichtbar -->
   <div class="admin-login-bar">
-    <button class="btn-admin-login" id="btnAdminLogin">🔐 Admin-Modus</button>
+    <span id="httpsHinweis" style="display:none;align-self:center;font-size:.85rem;color:var(--ink-soft)">
+      Anmeldung und Korrekturen nur über <a href="https://10.10.0.210:8447/" style="color:var(--leaf-dark)">den gesicherten Zugang</a>.
+    </span>
     <button class="btn-schicht-ende" id="btnSchichtEnde" disabled>🔒 Tag abschließen</button>
     <span class="admin-badge" style="position:static;background:none;font-size:.82rem;color:var(--amber-dark);padding:0;align-self:center" id="adminTimerBar"></span>
   </div>
@@ -477,17 +487,39 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
   </div>
 </div>
 
-<!-- Passwort-Modal -->
+<!-- Passwort-Modal: fragt das persoenliche Passwort fuer das Step-up ab.
+     Aussehen und Bedienung unveraendert, nur die Bedeutung des Passworts hat
+     gewechselt -- es kommt keine zusaetzliche Abfrage hinzu. -->
 <div class="modal-bg" id="pwModal">
   <div class="modal">
     <h3 id="pwTitle">Passwort</h3>
     <div class="mc">
       <p id="pwText" style="margin:0;color:var(--ink-soft);font-size:.9rem"></p>
-      <input type="password" id="pwInput" placeholder="Passwort" />
+      <input type="password" id="pwInput" placeholder="Passwort" autocomplete="current-password" />
     </div>
     <div class="mf">
       <button class="mbtn ghost" id="pwCancel">Abbrechen</button>
       <button class="mbtn primary" id="pwOk">Bestätigen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Anmelde-Modal: Benutzername und persoenliches Passwort, direkt an den
+     Auth-Dienst. Erscheint nur auf Klick -- die Erfassung startet wie bisher
+     ohne Anmeldung, der Scanbetrieb braucht keine. -->
+<div class="modal-bg" id="loginModal">
+  <div class="modal">
+    <h3>🔐 Anmelden<button class="cam-x" id="loginClose" style="color:var(--ink-soft);">✕</button></h3>
+    <div class="mc">
+      <div><label>Benutzername</label>
+        <input type="text" id="loginUser" autocomplete="username" autocapitalize="none" spellcheck="false" /></div>
+      <div><label>Passwort</label>
+        <input type="password" id="loginPw" autocomplete="current-password" /></div>
+      <div id="loginErr" style="display:none;color:var(--danger);font-size:.88rem;font-weight:600"></div>
+    </div>
+    <div class="mf">
+      <button class="mbtn ghost" id="loginCancel">Abbrechen</button>
+      <button class="mbtn primary" id="loginOk">Anmelden</button>
     </div>
   </div>
 </div>
@@ -680,50 +712,178 @@ let _lastAuftragId    = null;
 let _konfigEditTopf   = null;
 let _lastGesamtValue  = "";   // Topfgröße-Auswahl in der laufenden Edit-Session (null = noch nicht gewählt)
 
-/* ── Admin-Session ────────────────────────────────────────────────────── */
-const ADMIN_MIN = 15;
-let _adminPw      = null;
-let _adminUntil   = 0;
-let _adminTimer   = null;
-function isAdmin(){ return !!_adminPw && Date.now() < _adminUntil; }
+/* ── Zentrale Anmeldung ───────────────────────────────────────────────────
+ *
+ * Die Rollen kommen aus der Benutzerverwaltung des Auth-Dienstes:
+ * auswerter | meister | admin, je Anwendung.
+ *
+ * Einmal anmelden genuegt. Ein zweites Passwort fuer Aenderungen (Step-up)
+ * gibt es hier bewusst nicht -- es waere eine Abfrage mehr als vor der
+ * Umstellung. Was den Schutz traegt, ist die kurze Sitzung: erf-session.js
+ * wird hier ausdruecklich NICHT eingebunden, die stille Erneuerung gehoert
+ * nicht auf ein Hallentablet, das den ganzen Tag offen steht. Nach
+ * spaetestens 60 Minuten ist die Sitzung weg und das Tablet wieder stumm.
+ * Der Scanbetrieb ist davon nicht betroffen, er braucht keine Anmeldung.
+ */
+const AUTH_BASE = "https://10.10.0.210:8451";
+const APP_KEY   = "topfmaschine_mayer";
+const HTTPS_URL = "https://10.10.0.210:8447/";
 
-function refreshAdminUI(){
-  const active = isAdmin();
-  $("adminBadge").classList.toggle("show", active);
-  $("btnAdminLogin").classList.toggle("active", active);
-  $("adminToolbar").classList.toggle("show", active);
-  const reopenBtn = $("btnTagWiederOeffnen");
-  if(reopenBtn) reopenBtn.style.display = (active && state.dayIsClosed) ? "" : "none";
-  if(active){
-    const min = Math.ceil((_adminUntil - Date.now()) / 60000);
-    $("adminTimer").textContent = min + " min";
-    $("adminTimerBar").textContent = `Admin aktiv (${min} min)`;
-    $("btnAdminLogin").textContent = `🔓 Admin aktiv`;
-  } else {
-    $("adminTimerBar").textContent = "";
-    $("btnAdminLogin").textContent = "🔐 Admin-Modus";
+let _benutzer = null;   // Anzeigename, null = nicht angemeldet
+let _rolle    = null;   // "auswerter" | "meister" | "admin" | null
+
+/* Ueber HTTP (Port 8084, Scanbetrieb) erreicht das __Host--Cookie den Browser
+   nie. Dort wird gar nicht erst eine Anmeldung angeboten, statt einen Dialog
+   zu zeigen, der nicht funktionieren kann. */
+function ueberHttps(){ return location.protocol === "https:"; }
+
+function darfSchreiben(){ return _rolle === "meister" || _rolle === "admin"; }
+function istAdmin(){ return _rolle === "admin"; }
+
+/* Beibehalten, weil die Seite an vielen Stellen darauf prueft, ob gerade
+   aendernd eingegriffen werden darf. */
+function isAdmin(){ return darfSchreiben(); }
+
+async function sitzungLaden(){
+  if(!ueberHttps()){ kopfzeileZeichnen(); refreshAdminUI(); return; }
+  try{
+    const r = await fetch(AUTH_BASE + "/api/session/me", {credentials:"include"});
+    if(r.ok){
+      const s = await r.json();
+      _benutzer = s.display_name || s.username || null;
+      _rolle    = (s.roles || {})[APP_KEY] || null;
+    } else {
+      _benutzer = null; _rolle = null;
+    }
+  }catch(e){
+    /* Auth-Dienst nicht erreichbar: als nicht angemeldet weiterlaufen. Die
+       Erfassung darf davon nicht abhaengen. */
+    _benutzer = null; _rolle = null;
   }
-}
-
-async function ensureAdmin(title, text){
-  if(isAdmin()) return _adminPw;
-  const pw = await askPw(title || "Admin-Passwort", text || "Bitte Admin-Passwort eingeben.");
-  if(!pw) return null;
-  const ok = await TMSync.adminVerify(pw);
-  if(!ok){ toast("Falsches Passwort", true); return null; }
-  _adminPw    = pw;
-  _adminUntil = Date.now() + ADMIN_MIN * 60000;
-  if(_adminTimer) clearInterval(_adminTimer);
-  _adminTimer = setInterval(() => { if(!isAdmin()){ clearInterval(_adminTimer); _adminTimer = null; } refreshAdminUI(); }, 30000);
+  kopfzeileZeichnen();
   refreshAdminUI();
-  toast(`Admin-Modus aktiv für ${ADMIN_MIN} Minuten`);
-  return pw;
 }
 
-$("btnAdminLogin").onclick = async () => {
-  if(isAdmin()){ _adminPw = null; _adminUntil = 0; refreshAdminUI(); toast("Admin beendet"); return; }
-  await ensureAdmin("Admin-Modus", "Passwort eingeben.");
+function kopfzeileZeichnen(){
+  const angemeldet = !!_benutzer;
+  $("userBadge").textContent = angemeldet ? `${_benutzer} · ${_rolle || "kein Zugriff"}` : "";
+  $("btnAnmelden").style.display    = (!angemeldet && ueberHttps()) ? "" : "none";
+  $("btnSitzungEnde").style.display = angemeldet ? "" : "none";
+}
+
+/* ── Anmelden und abmelden ───────────────────────────────────────────────── */
+let _loginResolve = null;
+
+function loginDialog(){
+  return new Promise(res => {
+    _loginResolve = res;
+    $("loginUser").value = ""; $("loginPw").value = "";
+    $("loginErr").style.display = "none";
+    $("loginModal").classList.add("show");
+    setTimeout(() => $("loginUser").focus(), 60);
+  });
+}
+function loginSchliessen(wert){
+  $("loginModal").classList.remove("show");
+  if(_loginResolve){ _loginResolve(wert); _loginResolve = null; }
+}
+$("loginCancel").onclick = () => loginSchliessen(false);
+$("loginClose").onclick  = () => loginSchliessen(false);
+$("loginOk").onclick = async () => {
+  const benutzer = $("loginUser").value.trim();
+  const passwort = $("loginPw").value;
+  if(!benutzer || !passwort){
+    $("loginErr").textContent = "Bitte Benutzername und Passwort eingeben.";
+    $("loginErr").style.display = "block";
+    return;
+  }
+  try{
+    const r = await fetch(AUTH_BASE + "/api/login", {
+      method: "POST", credentials: "include",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({username: benutzer, password: passwort}),
+    });
+    if(!r.ok){
+      $("loginErr").textContent =
+        r.status === 429 ? "Zu viele Fehlversuche – bitte kurz warten." :
+        r.status === 403 ? "Dieses Konto ist gesperrt." :
+                           "Anmeldename oder Passwort ist falsch.";
+      $("loginErr").style.display = "block";
+      return;
+    }
+    const s = await r.json();
+    _benutzer = s.display_name || s.username;
+    _rolle    = (s.roles || {})[APP_KEY] || null;
+    loginSchliessen(true);
+    kopfzeileZeichnen();
+    refreshAdminUI();
+    toast(_rolle ? `Angemeldet als ${_benutzer} (${_rolle})`
+                 : "Angemeldet – für diese Anwendung ist keine Rolle vergeben", !_rolle);
+  }catch(e){
+    $("loginErr").textContent = "Anmeldedienst nicht erreichbar.";
+    $("loginErr").style.display = "block";
+  }
 };
+$("loginPw").addEventListener("keydown", e => { if(e.key === "Enter") $("loginOk").click(); });
+$("loginUser").addEventListener("keydown", e => { if(e.key === "Enter") $("loginPw").focus(); });
+
+$("btnAnmelden").onclick = () => {
+  if(!ueberHttps()){ toast("Anmeldung nur über " + HTTPS_URL, true); return; }
+  loginDialog();
+};
+
+$("btnSitzungEnde").onclick = async () => {
+  try{
+    await fetch(AUTH_BASE + "/api/logout", {method:"POST", credentials:"include"});
+  }catch(e){ /* Cookies werden serverseitig geloescht; ein Netzfehler darf die
+                Seite nicht blockieren. Sie laedt gleich ohnehin neu. */ }
+  _benutzer = null; _rolle = null;
+  location.reload();
+};
+
+/* ── Sichtbarkeit nach Rolle ─────────────────────────────────────────────── */
+function refreshAdminUI(){
+  const darf = darfSchreiben();
+  $("adminBadge").classList.toggle("show", darf);
+  $("adminToolbar").classList.toggle("show", darf);
+
+  /* Ueber HTTP kann es keine Sitzung geben. Statt einer Schaltflaeche, die
+     nicht funktionieren kann, ein Hinweis auf den HTTPS-Zugang. */
+  const hinweis = $("httpsHinweis");
+  if(hinweis) hinweis.style.display = ueberHttps() ? "none" : "";
+
+  /* Auftrag bearbeiten steht seit dem 30.07.2026 auch dem Meister offen -- die
+     Aufsicht braucht es im Alltag. Das Audit-Protokoll bleibt beim Admin: es
+     ist das Mittel, mit dem Korrekturen kontrolliert werden. */
+  const btnAudit = $("btnAuditLog");
+  if(btnAudit) btnAudit.style.display = istAdmin() ? "" : "none";
+
+  const reopenBtn = $("btnTagWiederOeffnen");
+  if(reopenBtn) reopenBtn.style.display = (darf && state.dayIsClosed) ? "" : "none";
+
+  $("adminBadge").textContent = darf ? `🔓 ${_rolle}` : "";
+  $("adminTimerBar").textContent = "";
+}
+
+/* Wer aendern will und nicht angemeldet ist, bekommt den Anmeldedialog -- und
+   damit genau eine Passworteingabe, nicht zwei. Danach gilt die Rolle, bis die
+   Sitzung ablaeuft. */
+async function ensureSchreibrechte(title, text){
+  if(darfSchreiben()) return true;
+  if(!ueberHttps()){ toast("Nur über " + HTTPS_URL + " möglich", true); return false; }
+  if(!_benutzer){
+    const ok = await loginDialog();
+    if(!ok) return false;
+  }
+  if(!darfSchreiben()){
+    toast("Für diese Anwendung fehlt dir die Rolle meister oder admin", true);
+    return false;
+  }
+  return true;
+}
+
+/* Alter Name, damit die Aufrufstellen unveraendert bleiben. */
+async function ensureAdmin(title, text){ return ensureSchreibrechte(title, text); }
 
 /* ── Passwort-Gate ────────────────────────────────────────────────────── */
 let _pwResolve = null;
@@ -744,10 +904,22 @@ function $(id){ return document.getElementById(id); }
 // Fetch mit Timeout: verhindert, dass die Seite bei einer haengenden
 // WLAN-Verbindung unbegrenzt wartet (gleiche Ursache wie der
 // Sync-Deadlock in sync.js, siehe dortigen _fetchTimeout).
+// CSRF-Kopf der zentralen Anmeldung. Ohne diesen Kopf verwirft die Middleware
+// die Cookie-Identitaet und es greift wieder das geteilte Passwort - die
+// Benutzerverwaltung wuerde in der Erfassung also nie wirken. Ist niemand
+// angemeldet, ist der Wert leer und es aendert sich nichts. Ueber HTTP (Port
+// 8084, Scanbetrieb) sendet der Browser das __Host--Cookie ohnehin nicht.
+function _csrfToken(){
+  const m = document.cookie.match(/(?:^|;\s*)__Host-erf_csrf=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : "";
+}
 function _fetchTimeout(url, opts, timeoutMs){
   const ctrl = new AbortController();
   const t = setTimeout(()=>ctrl.abort(), timeoutMs || 12000);
-  return fetch(url, Object.assign({}, opts, {signal: ctrl.signal})).finally(()=>clearTimeout(t));
+  const o = Object.assign({}, opts, {signal: ctrl.signal});
+  const tok = _csrfToken();
+  if(tok) o.headers = Object.assign({}, o.headers, {"X-CSRF-Token": tok});
+  return fetch(url, o).finally(()=>clearTimeout(t));
 }
 function nowHM(){ const d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
 function pad(n){ return String(n).padStart(2, "0"); }
@@ -1394,9 +1566,9 @@ function renderMaList(a, closed){
     const btnDel = row.querySelector(".btn-del-ma");
     if(btnDel){
       btnDel.addEventListener("click", async () => {
-        if(!isAdmin()){ toast("Nur im Admin-Modus möglich", true); return; }
+        if(!darfSchreiben()){ toast("Dazu fehlen dir die Schreibrechte", true); return; }
         if(!confirm(`${maLabel(m)} aus dem Auftrag löschen?`)) return;
-        TMSync.queueWorkerDelete({ pw: _adminPw, mz_id: m.id, auftrag_id: a.id });
+        TMSync.queueWorkerDelete({ mz_id: m.id, auftrag_id: a.id });
         a.mitarbeiter = a.mitarbeiter.filter(x => x.id !== m.id);
         renderAll();
         toast(`${maLabel(m)} gelöscht`);
@@ -1558,7 +1730,7 @@ function openSyncModal(blockiert){
   // Verwerfen vernichtet eine erfasste Aenderung endgueltig - deshalb nur im
   // Admin-Modus und mit ausdruecklicher Bestaetigung.
   c.querySelectorAll("[data-discard]").forEach(b => b.addEventListener("click", async () => {
-    if(!isAdmin()){ const ok = await ensureAdmin("Admin erforderlich", "Verwerfen löscht die erfasste Änderung endgültig."); if(!ok) return; }
+    if(!darfSchreiben()){ const ok = await ensureSchreibrechte("Schreibrechte erforderlich", "Verwerfen löscht die erfasste Änderung endgültig."); if(!ok) return; }
     if(!confirm("Diesen Eintrag endgültig verwerfen? Die erfasste Änderung geht dabei verloren.")) return;
     await TMSync.discardOp(b.dataset.discard);
     toast("Eintrag verworfen", true);
@@ -2016,7 +2188,7 @@ $("paOk").onclick = () => {
       queueWorkerUpdate(m, a);
     }
   });
-  TMSync.queueAuftragClose({ auftrag_id: a.id, auftrag_ende: ende, gesamtstueck: stueck, pw: _adminPw || "" });
+  TMSync.queueAuftragClose({ auftrag_id: a.id, auftrag_ende: ende, gesamtstueck: stueck });
   a.auftrag_ende = ende; a.gesamtstueck = stueck; a.status = "abgeschlossen";
   upsertAuftragInList(a);
   $("paModal").classList.remove("show");
@@ -2238,7 +2410,7 @@ $("btnSchichtEnde").onclick = () => {
       _sbClickCount = 0;
       if(_sbClickTimer) clearTimeout(_sbClickTimer);
       $("btnSchichtEnde").textContent = "🔒 Tag abschließen";
-      TMSync.queueDayClose({ datum: state.datumISO, pw: _adminPw || "" });
+      TMSync.queueDayClose({ datum: state.datumISO });
       state.dayIsClosed = true;
       renderAll();
       toast("Tag abgeschlossen ✓");
@@ -2280,12 +2452,12 @@ $("sbOk").onclick = () => {
         queueWorkerUpdate(m, a);
       }
     });
-    TMSync.queueAuftragClose({ auftrag_id: a.id, auftrag_ende: ende, gesamtstueck: stueck, pw: _adminPw || "" });
+    TMSync.queueAuftragClose({ auftrag_id: a.id, auftrag_ende: ende, gesamtstueck: stueck });
     a.auftrag_ende = ende; a.gesamtstueck = stueck; a.status = "abgeschlossen";
     upsertAuftragInList(a);
   }
 
-  TMSync.queueDayClose({ datum: state.datumISO, pw: _adminPw || "" });
+  TMSync.queueDayClose({ datum: state.datumISO });
   state.dayIsClosed = true;
   $("sbModal").classList.remove("show");
   renderAll();
@@ -2304,7 +2476,7 @@ $("editCancel").onclick = () => $("editModal").classList.remove("show");
 
 $("btnEditAuftrag").onclick = async () => {
   const a = state.auftrag; if(!a) return;
-  if(!isAdmin()){ const ok = await ensureAdmin("Admin erforderlich",""); if(!ok) return; }
+  if(!darfSchreiben()){ const ok = await ensureSchreibrechte("Schreibrechte erforderlich",""); if(!ok) return; }
   $("editStart").value  = a.auftrag_start || "";
   $("editEnde").value   = a.auftrag_ende  || "";
   $("editStueck").value = (a.gesamtstueck !== null && a.gesamtstueck !== undefined) ? a.gesamtstueck : "";
@@ -2315,8 +2487,17 @@ $("btnEditAuftrag").onclick = async () => {
   (a.mitarbeiter||[]).forEach(m => {
     const d = document.createElement("div");
     d.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;";
+    /* Die Personalnummer ist seit dem 30.07.2026 aenderbar -- eine falsch
+       gescannte Nummer war vorher nur durch Loeschen und neu Scannen zu
+       beheben. Bei einer Sammelzeile gibt es keine, dort bleibt es Text.
+       Die Endzeit zu leeren heisst "wieder anmelden": der Mitarbeiter zaehlt
+       danach wieder als anwesend. */
     d.innerHTML = `
-      <span style="min-width:62px;font-weight:700;font-size:.92rem">${isSammel(m) ? "👥 " + maAnzahl(m) : esc(m.pnr)}</span>
+      ${isSammel(m)
+        ? `<span style="min-width:78px;font-weight:700;font-size:.92rem">👥 ${maAnzahl(m)}</span>`
+        : `<input type="text" inputmode="numeric" data-mzid="${m.id}" data-field="pnr"
+                  value="${esc(m.pnr)}" maxlength="5" title="Personalnummer ändern"
+                  style="width:78px;padding:5px 8px;border:1.5px solid var(--paper-line);border-radius:6px;font-size:.9rem;font-weight:700;">`}
       <span style="font-size:.72rem;color:var(--ink-soft);min-width:52px">${isSammel(m) ? "sammel" : esc(m.rolle)}</span>
       <label style="font-size:.75rem;color:var(--ink-soft)">Start</label>
       <input type="time" data-mzid="${m.id}" data-field="start" value="${m.start||""}"
@@ -2324,6 +2505,12 @@ $("btnEditAuftrag").onclick = async () => {
       <label style="font-size:.75rem;color:var(--ink-soft)">Ende</label>
       <input type="time" data-mzid="${m.id}" data-field="ende"  value="${m.ende||""}"
              style="padding:5px 8px;border:1.5px solid var(--paper-line);border-radius:6px;font-size:.88rem;">
+      <button type="button" class="btn-wieder-an" data-mzid="${m.id}"
+              title="Endzeit löschen – Mitarbeiter wieder anmelden"
+              ${m.ende ? "" : "disabled"}
+              style="border:1.5px solid var(--leaf);background:#fff;color:var(--leaf-dark);border-radius:6px;padding:5px 10px;font-size:.8rem;font-weight:700;cursor:pointer;">
+        ↩ wieder anmelden
+      </button>
       <label style="font-size:.75rem;color:var(--ink-soft)">Pause</label>
       <select data-mzid="${m.id}" data-field="pause"
               style="padding:5px;border:1.5px solid var(--paper-line);border-radius:6px;font-size:.85rem;">
@@ -2334,6 +2521,14 @@ $("btnEditAuftrag").onclick = async () => {
         <option value="1"   ${(m.pause||0)===1    ?"selected":""}>1 h</option>
       </select>
     `;
+    /* Wieder anmelden wirkt sofort auf die Felder der Zeile; gespeichert wird
+       wie alles andere erst beim Klick auf Speichern. */
+    const btnAn = d.querySelector(".btn-wieder-an");
+    if(btnAn) btnAn.onclick = () => {
+      d.querySelector('[data-field="ende"]').value  = "";
+      d.querySelector('[data-field="pause"]').value = "0";
+      btnAn.disabled = true;
+    };
     maRows.appendChild(d);
   });
   $("editModal").classList.add("show");
@@ -2342,23 +2537,55 @@ $("btnEditAuftrag").onclick = async () => {
 $("editOk").onclick = async () => {
   const a = state.auftrag; if(!a) return;
 
-  // MA-Zeiten übernehmen
+  /* Zeilenweise sammeln, was sich geaendert hat. Personalnummer und das Leeren
+     der Endzeit gehen ueber /api/admin/worker/edit -- den rollengeschuetzten
+     Weg. /api/worker/update ist fuer den Scanbetrieb ohne Anmeldung offen und
+     darf keine Personalnummer umschreiben. */
+  const korrekturen = new Map();   // mz_id -> Feldliste fuer den Server
+
   $("editMaRows").querySelectorAll("[data-mzid]").forEach(inp => {
     const mzid = inp.dataset.mzid, field = inp.dataset.field;
+    if(!field) return;
     const m = (a.mitarbeiter||[]).find(x => x.id === mzid);
     if(!m) return;
     const newVal = inp.tagName === "SELECT" ? parseFloat(inp.value) : inp.value;
     const oldVal = m[field];
-    if(String(newVal) !== String(oldVal ?? "")){
-      m[field] = newVal;
-      if(field !== "pause" && m.start && m.ende) m.pause = calcAutoPause(m.start, m.ende);
+    if(String(newVal) === String(oldVal ?? "")) return;
+
+    if(field === "pnr" || (field === "ende" && !newVal)){
+      const eintrag = korrekturen.get(mzid) || { mz_id: mzid, auftrag_id: a.id };
+      eintrag[field] = newVal;
+      korrekturen.set(mzid, eintrag);
     }
+    m[field] = newVal;
+    if(field !== "pause" && m.start && m.ende) m.pause = calcAutoPause(m.start, m.ende);
+    if(field === "ende" && !newVal) m.pause = 0;
   });
-  // MA-Updates an Server
+
+  // Personalnummer und Wiederanmeldung zuerst -- schlaegt das fehl, soll der
+  // Rest gar nicht erst laufen und die Meldung stehen bleiben.
+  for(const eintrag of korrekturen.values()){
+    try {
+      const r = await _fetchTimeout("/api/admin/worker/edit", { method:"POST",
+        headers:{"Content-Type":"application/json"}, body: JSON.stringify(eintrag) });
+      if(!r.ok){
+        let grund = "Korrektur abgelehnt";
+        try { const d = await r.json(); if(d && d.detail) grund = d.detail; } catch(e){}
+        toast(grund, true);
+        await loadAndMerge();
+        return;
+      }
+    } catch(e){
+      toast("Korrektur nicht gespeichert – keine Verbindung", true);
+      return;
+    }
+  }
+
+  // Restliche Zeitangaben wie bisher über die Outbox
   (a.mitarbeiter||[]).forEach(m => queueWorkerUpdate(m, a));
 
   // Auftragsdaten direkt via API
-  const editBody = { pw: _adminPw, auftrag_id: a.id };
+  const editBody = { auftrag_id: a.id };
   if($("editStart").value)   { editBody.auftrag_start = $("editStart").value; a.auftrag_start = $("editStart").value; }
   if($("editEnde").value)    { editBody.auftrag_ende  = $("editEnde").value;  a.auftrag_ende  = $("editEnde").value;  }
   const esv = $("editStueck").value;
@@ -2386,7 +2613,7 @@ $("deleteConfirmInput").addEventListener("input", () => {
 
 $("btnDeleteAuftrag").onclick = async () => {
   const a = state.auftrag; if(!a) return;
-  if(!isAdmin()){ const ok = await ensureAdmin("Admin-Passwort","Zum Löschen Admin-Zugang erforderlich."); if(!ok) return; }
+  if(!darfSchreiben()){ const ok = await ensureSchreibrechte("Schreibrechte erforderlich","Zum Löschen sind Schreibrechte erforderlich."); if(!ok) return; }
   $("deleteAuftragNr").textContent   = a.auftragsnr || "—";
   $("deleteConfirmInput").value = "";
   $("deleteOk").disabled = true;
@@ -2400,7 +2627,7 @@ $("deleteOk").onclick = async () => {
   try {
     const r = await _fetchTimeout("/api/admin/auftrag/delete", { method:"POST",
       headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ pw: _adminPw, auftrag_id: a.id }) });
+      body: JSON.stringify({ auftrag_id: a.id }) });
     if(!r.ok){ toast("Löschen fehlgeschlagen", true); return; }
     state.auftrag = null;
     state.auftraege = state.auftraege.filter(x => x.id !== a.id);
@@ -2414,11 +2641,11 @@ $("auditClose").onclick = () => $("auditModal").classList.remove("show");
 $("auditDone").onclick  = () => $("auditModal").classList.remove("show");
 
 $("btnAuditLog").onclick = async () => {
-  if(!isAdmin()){ toast("Nur im Admin-Modus", true); return; }
+  if(!darfSchreiben()){ toast("Dazu fehlen dir die Schreibrechte", true); return; }
   try {
     const r    = await _fetchTimeout("/api/audit", { method:"POST",
       headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ pw: _adminPw, limit: 200 }) });
+      body: JSON.stringify({ limit: 200 }) });
     const list = await r.json();
     const body = $("auditBody");
     body.innerHTML = "";
@@ -2451,12 +2678,12 @@ $("btnAuditLog").onclick = async () => {
 
 /* ── CSV-Export ───────────────────────────────────────────────────────── */
 $("btnTagWiederOeffnen").onclick = async () => {
-  if(!isAdmin()){ toast("Nur im Admin-Modus", true); return; }
+  if(!darfSchreiben()){ toast("Dazu fehlen dir die Schreibrechte", true); return; }
   if(!confirm("Tag wieder öffnen? Der Tagesabschluss wird aufgehoben.")) return;
   try {
     const r = await _fetchTimeout("/api/admin/day/reopen", { method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ datum: state.datumISO, pw: _adminPw || "" }) });
+      body: JSON.stringify({ datum: state.datumISO }) });
     if(!r.ok){ const e = await r.json().catch(()=>{}); toast(e?.detail || "Fehler", true); return; }
     state.dayIsClosed = false;
     renderAll();
@@ -2465,11 +2692,11 @@ $("btnTagWiederOeffnen").onclick = async () => {
 };
 
 $("btnExportCsv").onclick = async () => {
-  if(!isAdmin()){ toast("Nur im Admin-Modus", true); return; }
+  if(!darfSchreiben()){ toast("Dazu fehlen dir die Schreibrechte", true); return; }
   try {
     const r = await _fetchTimeout("/api/export.csv", { method:"POST",
       headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ pw: _adminPw, von: state.datumISO, bis: state.datumISO }) }, 30000);
+      body: JSON.stringify({ von: state.datumISO, bis: state.datumISO }) }, 30000);
     if(!r.ok){ toast("Export fehlgeschlagen", true); return; }
     const blob = await r.blob();
     const url  = URL.createObjectURL(blob);
@@ -2582,6 +2809,11 @@ async function loadAndMerge(){
 
 /* ── Init ───────────────────────────────────────────────────────────────────────── */
 async function init(){
+  // Sitzung ermitteln, ohne den Seitenaufbau aufzuhalten. Ist der Auth-Dienst
+  // nicht erreichbar, laeuft die Seite als nicht angemeldet weiter -- der
+  // Scanbetrieb haengt nicht daran.
+  sitzungLaden();
+
   const now = new Date();
   state.datumISO = now.getFullYear() + "-" + pad(now.getMonth()+1) + "-" + pad(now.getDate());
   state.datum    = pad(now.getDate()) + "." + pad(now.getMonth()+1) + "." + now.getFullYear();

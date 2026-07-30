@@ -8,7 +8,11 @@ User=produktion
 Group=produktion
 WorkingDirectory=/opt/topfmaschine_mayer
 EnvironmentFile=/etc/topfmaschine_mayer.env
-ExecStart=/opt/topfmaschine_mayer/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8084 --workers 1
+# --proxy-headers ist zwingend, seit /auswertung serverseitig geschuetzt ist:
+# guard_page baut das Rueckkehrziel aus request.url. Ohne die Koepfe von Caddy
+# stuende dort http:// und die Anmeldung schickte den Benutzer auf einen Port,
+# auf dem es kein HTTP gibt. Vertraut wird nur dem lokalen Caddy.
+ExecStart=/opt/topfmaschine_mayer/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8084 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
 Restart=always
 RestartSec=5
 StandardOutput=journal

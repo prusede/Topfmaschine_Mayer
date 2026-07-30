@@ -1,0 +1,5 @@
+# Nur fuer die Tests, nicht auf dem CT im Betrieb noetig.
+-r requirements.txt
+pytest>=8.0
+# TestClient von FastAPI setzt httpx voraus.
+httpx>=0.27

@@ -1,3 +1,9 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic==2.10.4
+
+# Signaturpruefung der Sitzungstokens (Ed25519) im Paket erfassung_auth.
+cryptography>=44
+
+# Zentrale Anmeldung. Wird per SSH mit dem Konto-Schluessel des CT geklont.
+erfassung-auth @ git+ssh://git@github.com/prusede/erfassung_auth.git@v1.0.1

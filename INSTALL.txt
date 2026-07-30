@@ -25,14 +25,19 @@ gibt daher keinen logo-poller-Dienst und kein TM_LOGO_*-Environment.
 
 4. Environment-Datei anlegen
    sudo nano /etc/topfmaschine_mayer.env
-   Inhalt (TM_ADMIN_PW/TM_VIEWER_PW: identische Werte wie in
-   /etc/topfmaschine.env von Stolze - so vereinbart, damit beide Apps mit
-   denselben Admin-/Auswertungs-Passwörtern erreichbar sind):
-     TM_ADMIN_PW=<gleicher Wert wie Stolze>
-     TM_VIEWER_PW=<gleicher Wert wie Stolze>
+   Inhalt:
      TM_DB_PATH=/opt/topfmaschine_mayer/data/topfmaschine_mayer.db
 
+   TM_ADMIN_PW und TM_VIEWER_PW gibt es seit der Umstellung auf die zentrale
+   Anmeldung (30.07.2026) nicht mehr. Sie werden nicht gelesen und gehören,
+   falls noch vorhanden, gelöscht. Rechte kommen ausschließlich aus der
+   Benutzerverwaltung des Auth-Dienstes (App-Kennung "topfmaschine_mayer").
+
    sudo chmod 600 /etc/topfmaschine_mayer.env
+
+   Voraussetzung: der Auth-Dienst läuft auf 8451 und das Verzeichnis
+   /etc/erfassung-auth/public enthält mindestens einen öffentlichen
+   Schlüssel. Fehlt er, startet die Anwendung bewusst nicht.
 
 5. systemd-Service installieren (kein LOGO!-Poller nötig)
    sudo cp /opt/topfmaschine_mayer/systemd/topfmaschine-mayer.service /etc/systemd/system/
@@ -53,6 +58,11 @@ gibt daher keinen logo-poller-Dienst und kein TM_LOGO_*-Environment.
 
 8. Logs prüfen
    sudo journalctl -u topfmaschine-mayer -f
+
+8a. Tests
+   cd /opt/topfmaschine_mayer
+   venv/bin/pip install -r requirements-dev.txt
+   venv/bin/python -m pytest -q
 
 9. Tablet-Lesezeichen
    Zwei Lesezeichen auf demselben Tablet anlegen:

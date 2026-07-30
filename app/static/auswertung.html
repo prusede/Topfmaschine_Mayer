@@ -78,13 +78,16 @@ tr.missing td{background:#fde8ef;}
 </head>
 <body>
 
-<!-- Auth-Overlay -->
+<!-- Anmeldung. Der Dialog ist und bleibt der Ausgangszustand der Seite: er
+     wird nur im Erfolgsfall ausgeblendet, nie erst nach einem Ergebnis
+     eingeblendet. -->
 <div class="auth-overlay" id="authOverlay">
   <div class="auth-box">
-    <h3>🔐 Auswertung – Zugang</h3>
-    <input type="password" id="authInput" placeholder="Auswertungs-Passwort" />
-    <div class="auth-err" id="authErr">Falsches Passwort</div>
-    <button class="auth-btn" id="authBtn">Weiter</button>
+    <h3>🔐 Auswertung – Anmeldung</h3>
+    <input type="text" id="authUser" placeholder="Benutzername" autocomplete="username" autocapitalize="none" spellcheck="false" />
+    <input type="password" id="authInput" placeholder="Passwort" autocomplete="current-password" />
+    <div class="auth-err" id="authErr">Anmeldename oder Passwort ist falsch</div>
+    <button class="auth-btn" id="authBtn">Anmelden</button>
   </div>
 </div>
 
@@ -92,7 +95,9 @@ tr.missing td{background:#fde8ef;}
   <div class="brand">DOMINIK</div>
   <div class="title">Topfmaschine Mayer – Auswertung</div>
   <span class="spacer"></span>
-  <a class="back" href="http://10.10.0.210:8083/auswertung" style="margin-right:14px">⇄ Stolze-Auswertung</a>
+  <span class="user-badge" id="userBadge" style="color:#fff;font-size:.82rem;font-weight:600;margin-right:12px;opacity:.92"></span>
+  <button class="back" id="btnAbmelden" style="display:none;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:6px 12px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:inherit;margin-right:14px">Abmelden</button>
+  <a class="back" href="https://10.10.0.210:8446/auswertung" style="margin-right:14px">⇄ Stolze-Auswertung</a>
   <a class="back" href="/">← zur Erfassung</a>
 </header>
 
@@ -176,6 +181,19 @@ tr.missing td{background:#fde8ef;}
   </div>
 </main>
 
+<!-- Stille Erneuerung der Sitzung (Variante B): das Sitzungscookie gilt 60
+     Minuten und wird im Hintergrund erneuert, ein Widerruf wirkt damit binnen
+     einer Stunde. Ausdruecklich nur hier und nicht in index.html - auf dem
+     Hallentablet steht die Erfassung den ganzen Tag offen.
+
+     ERF_REDIRECT_ON_LOGOUT ist entfallen: es gibt keinen Weg ohne Sitzung mehr,
+     die Umleitung auf die Anmeldung ist damit richtig statt schaedlich.
+
+     defer ist zwingend: ein blockierend geladenes externes Skript laesst die
+     Seite leer, solange der Browser auf einen haengenden Auth-Dienst wartet.
+     Ohne das Skript endet die Sitzung nach 60 Minuten. -->
+<script defer src="https://10.10.0.210:8451/static/erf-session.js"></script>
+
 <script>
 "use strict";
 const pad = n => String(n).padStart(2,"0");
@@ -188,27 +206,115 @@ function $(id){ return document.getElementById(id); }
 // Fetch mit Timeout: verhindert, dass die Auswertungsseite bei einer
 // haengenden WLAN-Verbindung unbegrenzt wartet (gleiche Ursache wie der
 // Sync-Deadlock in sync.js, siehe dortigen _fetchTimeout).
+// CSRF-Kopf der zentralen Anmeldung. Ohne ihn verwirft die Middleware die
+// Cookie-Identitaet und es greift wieder das geteilte Passwort.
+function _csrfToken(){
+  const m = document.cookie.match(/(?:^|;\s*)__Host-erf_csrf=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : "";
+}
 function _fetchTimeout(url, opts, timeoutMs){
   const ctrl = new AbortController();
   const t = setTimeout(()=>ctrl.abort(), timeoutMs || 12000);
-  return fetch(url, Object.assign({}, opts, {signal: ctrl.signal})).finally(()=>clearTimeout(t));
+  const o = Object.assign({}, opts, {signal: ctrl.signal});
+  const tok = _csrfToken();
+  if(tok) o.headers = Object.assign({}, o.headers, {"X-CSRF-Token": tok});
+  return fetch(url, o).finally(()=>clearTimeout(t));
 }
 
-let _pw = "", _kulturen = [];
+const AUTH_BASE = "https://10.10.0.210:8451";
+const APP_KEY   = "topfmaschine_mayer";
+let _kulturen = [];
 
-/* ── Auth ──────────────────────────────────────────────────────── */
+/* ── Anmeldung ─────────────────────────────────────────────────── */
+function kopfzeileZeichnen(name, rolle){
+  $("userBadge").textContent = name ? `${name} · ${rolle || "kein Zugriff"}` : "";
+  $("btnAbmelden").style.display = name ? "" : "none";
+}
+
 async function doAuth(){
-  const pw = $("authInput").value;
+  const benutzer = $("authUser").value.trim();
+  const passwort = $("authInput").value;
+  if(!benutzer || !passwort){
+    $("authErr").textContent = "Bitte Benutzername und Passwort eingeben.";
+    $("authErr").style.display = "block";
+    return;
+  }
   try {
-    const r = await _fetchTimeout("/api/auswertung/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pw})});
-    const data = await r.json();
-    if(data.ok){ _pw = pw; $("authOverlay").style.display="none"; init(); }
-    else{ $("authErr").style.display="block"; }
-  } catch(e){ $("authErr").textContent="Verbindungsfehler"; $("authErr").style.display="block"; }
+    const r = await fetch(AUTH_BASE + "/api/login", {
+      method: "POST", credentials: "include",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({username: benutzer, password: passwort}),
+    });
+    if(!r.ok){
+      $("authErr").textContent =
+        r.status === 429 ? "Zu viele Fehlversuche – bitte kurz warten." :
+        r.status === 403 ? "Dieses Konto ist gesperrt." :
+                           "Anmeldename oder Passwort ist falsch.";
+      $("authErr").style.display = "block";
+      return;
+    }
+    const s = await r.json();
+    const rolle = (s.roles || {})[APP_KEY] || null;
+    if(!rolle){
+      $("authErr").textContent = "Für diese Auswertung ist dir keine Rolle zugewiesen.";
+      $("authErr").style.display = "block";
+      return;
+    }
+    kopfzeileZeichnen(s.display_name || s.username, rolle);
+    $("authOverlay").style.display = "none";
+    if(!_initGestartet){ _initGestartet = true; init(); }
+  } catch(e){
+    $("authErr").textContent = "Anmeldedienst nicht erreichbar.";
+    $("authErr").style.display = "block";
+  }
 }
 $("authBtn").onclick = doAuth;
+$("authUser").addEventListener("keydown", ev => { if(ev.key==="Enter") $("authInput").focus(); });
 $("authInput").addEventListener("keydown", ev => { if(ev.key==="Enter") doAuth(); });
-setTimeout(() => $("authInput").focus(), 100);
+setTimeout(() => $("authUser").focus(), 100);
+
+$("btnAbmelden").onclick = async () => {
+  try { await fetch(AUTH_BASE + "/api/logout", {method:"POST", credentials:"include"}); }
+  catch(e){ /* Cookies werden serverseitig geloescht; ein Netzfehler darf die
+               Seite nicht blockieren, sie laedt gleich ohnehin neu. */ }
+  location.reload();
+};
+
+/* Bereits angemeldet? Dann ohne Dialog weiter - es kommt keine zusaetzliche
+   Abfrage hinzu.
+
+   Geprueft wird gegen die eigene Anwendung (/api/auswertung/verify), nicht
+   gegen den Auth-Dienst: der Endpunkt beantwortet nach der Umstellung genau
+   die Frage "reicht meine Sitzung fuer diese Anwendung?" und haengt nicht an
+   der Erreichbarkeit des Dienstes. Faellt der Vorabruf aus, bleibt der Dialog
+   stehen.
+
+   _initGestartet verhindert den Wettlauf: meldet sich jemand an, waehrend der
+   Vorabruf noch laeuft, liefe init() sonst zweimal. */
+let _initGestartet = false;
+_fetchTimeout("/api/auswertung/verify",
+  {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})}, 4000)
+  .then(r => r.ok ? r.json() : null)
+  .then(d => {
+    if(d && d.ok && !_initGestartet){
+      _initGestartet = true;
+      $("authOverlay").style.display = "none";
+      init();
+      sitzungAnzeigen();
+    }
+  })
+  .catch(() => {});
+
+/* Name und Rolle fuer die Kopfzeile. Rein kosmetisch - schlaegt der Aufruf
+   fehl, bleibt die Kopfzeile leer und die Seite funktioniert unveraendert. */
+async function sitzungAnzeigen(){
+  try{
+    const r = await fetch(AUTH_BASE + "/api/session/me", {credentials:"include"});
+    if(!r.ok) return;
+    const s = await r.json();
+    kopfzeileZeichnen(s.display_name || s.username, (s.roles || {})[APP_KEY] || null);
+  }catch(e){}
+}
 
 /* ── Init ──────────────────────────────────────────────────────── */
 async function init(){
@@ -249,8 +355,8 @@ async function loadData(){
   if(!von||!bis){ return; }
   try {
     const [summaries, byKultur] = await Promise.all([
-      _fetchTimeout("/api/auswertung/summary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pw:_pw,von,bis})}).then(r=>r.json()),
-      _fetchTimeout("/api/auswertung/kulturen",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pw:_pw,von,bis})}).then(r=>r.json()),
+      _fetchTimeout("/api/auswertung/summary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis})}).then(r=>r.json()),
+      _fetchTimeout("/api/auswertung/kulturen",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis})}).then(r=>r.json()),
     ]);
     renderKPIs(summaries);
     renderAuftraege(summaries);
@@ -354,7 +460,7 @@ function renderTage(rows){
 $("btnExport").onclick = async () => {
   const von=$("fVon").value, bis=$("fBis").value;
   try {
-    const r=await _fetchTimeout("/api/export.csv",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pw:_pw,von,bis})},30000);
+    const r=await _fetchTimeout("/api/export.csv",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis})},30000);
     if(!r.ok){alert("Export fehlgeschlagen");return;}
     const blob=await r.blob();
     const a=document.createElement("a");
