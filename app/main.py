@@ -584,7 +584,7 @@ def logo_white():
 # ── Health + Config ────────────────────────────────────────────────────────────
 @app.get("/health")
 def health():
-    return {"ok": True, "ts": int(time.time() * 1000), "app": "Topfmaschine",
+    return {"ok": True, "ts": int(time.time() * 1000), "app": "Topfmaschine Mayer",
             "pnr_min": PNR_MIN, "pnr_max": PNR_MAX}
 
 
@@ -947,7 +947,7 @@ def day_status(datum: str = Query(default_factory=lambda: date.today().isoformat
 def admin_day_reopen(body: DayCloseIn):
     check_admin(body.pw)
     db.reopen_day(body.datum, "admin")
-    db.log_audit("day_reopen", "admin", body.datum, "Tag wieder geöffnet")
+    db.log_audit("day_reopen", _actor(), body.datum, "Tag wieder geöffnet")
     return {"ok": True, "datum": body.datum}
 
 
