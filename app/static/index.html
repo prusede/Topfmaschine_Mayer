@@ -82,6 +82,13 @@ main{padding:16px;max-width:1100px;margin:0 auto;}
 /* Chips */
 .chips{display:flex;flex-wrap:wrap;gap:6px;}
 .chip{border:1.5px solid var(--paper-line);background:#fff;border-radius:999px;padding:7px 14px;font-size:.88rem;cursor:pointer;user-select:none;transition:all .12s;}
+/* Abgeschlossener Auftrag/Tag: Kultur- und Topfauswahl bleiben sichtbar,
+   lassen sich aber nicht mehr verstellen. Bis hierher waren nur die
+   Mitarbeiter-Zeitfelder abgesichert -- die Konfiguration nicht, obwohl der
+   Server ihre Aenderung ablehnt und der Eintrag dann in der Outbox haengt. */
+.chip:disabled{opacity:.5;cursor:not-allowed;background:#f0efeb;}
+.chip.on:disabled{opacity:.75;}
+#kulturFrei:disabled{opacity:.5;cursor:not-allowed;background:#f0efeb;}
 .chip:hover{border-color:var(--leaf);background:var(--leaf-light);}
 .chip.on{background:var(--leaf-light);border-color:var(--leaf);color:var(--leaf-dark);font-weight:600;}
 .chip.topf.on{background:var(--amber-soft);border-color:var(--amber);color:var(--amber-dark);}
@@ -743,6 +750,13 @@ function istAdmin(){ return _rolle === "admin"; }
 /* Beibehalten, weil die Seite an vielen Stellen darauf prueft, ob gerade
    aendernd eingegriffen werden darf. */
 function isAdmin(){ return darfSchreiben(); }
+/* Darf an der Kultur-/Topfkonfiguration dieses Auftrags noch etwas geaendert
+   werden? Abgeschlossener Auftrag oder abgeschlossener Tag sperren sie fuer
+   alle ohne Schreibrolle -- dieselbe Bedingung, die der Server durchsetzt. */
+function konfigGesperrt(a){
+  if(isAdmin()) return false;
+  return !!(state.dayIsClosed || (a && a.status === "abgeschlossen"));
+}
 
 async function sitzungLaden(){
   if(!ueberHttps()){ kopfzeileZeichnen(); refreshAdminUI(); return; }
@@ -1315,6 +1329,7 @@ function updateKulturTopfUI(a){
 
 function renderTopfChips(a){
   const c = $("topfChips"); if(!c) return;
+  const gesperrt = konfigGesperrt(a);
   c.innerHTML = "";
   TOPFGROESSEN.forEach(name => {
     const b = document.createElement("button");
@@ -1322,7 +1337,9 @@ function renderTopfChips(a){
     const selectedTopf = _konfigEditTopf !== null ? _konfigEditTopf : a.topfgroesse;
     b.type = "button"; b.className = "chip topf" + (selectedTopf === name ? " on" : "");
     b.textContent = name;
+    b.disabled = gesperrt;
     b.onclick = () => {
+      if(gesperrt) return;
       _konfigEditTopf = (_konfigEditTopf === name ? null : name);
       renderTopfChips(a);
       $("btnFertig").disabled = !(a.kultur !== null && (_konfigEditTopf !== null || !!a.topfgroesse));
@@ -1334,13 +1351,16 @@ function renderTopfChips(a){
 function renderKulturChips(a){
   const freiIdx = KULTUREN.length + 1;
   const c = $("kulturChips"); if(!c) return;
+  const gesperrt = konfigGesperrt(a);
   c.innerHTML = "";
   KULTUREN.forEach((name, i) => {
     const idx = i + 1;
     const b = document.createElement("button");
     b.type = "button"; b.className = "chip kul" + (a.kultur === idx ? " on" : "");
     b.innerHTML = `<span class="kul-num">${idx}</span>${name}`;
+    b.disabled = gesperrt;
     b.onclick = () => {
+      if(gesperrt) return;
       a.kultur = (a.kultur === idx ? null : idx);
       if(a.kultur !== freiIdx) a.kultur_frei = "";
       _konfigEditTopf = null;
@@ -1357,7 +1377,9 @@ function renderKulturChips(a){
   const bf = document.createElement("button");
   bf.type = "button"; bf.className = "chip kul" + (a.kultur === freiIdx ? " on" : "");
   bf.innerHTML = `<span class="kul-num">${freiIdx}</span>Freitext`;
+  bf.disabled = gesperrt;
   bf.onclick = () => {
+    if(gesperrt) return;
     a.kultur = (a.kultur === freiIdx ? null : freiIdx);
     _konfigEditTopf = null;
     a.topfgroesse = "";
@@ -1369,6 +1391,7 @@ function renderKulturChips(a){
   };
   c.appendChild(bf);
   $("kulturFrei").classList.toggle("show", a.kultur === freiIdx);
+  $("kulturFrei").disabled = gesperrt;
   $("kulturFrei").value = a.kultur_frei || "";
   // Header aktualisieren
   $("kulHeader").textContent = `KULTUR — EINZELAUSWAHL, ${freiIdx} = FREITEXT`;
@@ -1398,6 +1421,7 @@ $("btnAendern").onclick = () => {
 
 $("kulturFrei").addEventListener("input", () => {
   if(!state.auftrag) return;
+  if(konfigGesperrt(state.auftrag)) return;
   state.auftrag.kultur_frei = $("kulturFrei").value;
   TMSync.queueAuftragUpdate({ auftrag_id: state.auftrag.id, kultur_frei: state.auftrag.kultur_frei });
 });
