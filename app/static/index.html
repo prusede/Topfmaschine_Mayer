@@ -718,6 +718,11 @@ let _konfigCollapsed  = false;
 let _lastAuftragId    = null;
 let _konfigEditTopf   = null;
 let _lastGesamtValue  = "";   // Topfgröße-Auswahl in der laufenden Edit-Session (null = noch nicht gewählt)
+// Zu welchem Auftrag gehoert der aktuelle Inhalt des Mengenfeldes? Solange
+// die Kennung passt, ist der Feldinhalt eine moeglicherweise noch nicht
+// synchronisierte Eingabe zu diesem Auftrag; passt sie nicht, stammt er von
+// einem anderen Auftrag und wird ersetzt - auch durch einen leeren Wert.
+let _gesamtFeldAuftragId = null;
 
 /* ── Zentrale Anmeldung ───────────────────────────────────────────────────
  *
@@ -1249,9 +1254,23 @@ function renderAll(){
   if(gs) gs.disabled = closed && !isAdmin();
   if(gs && document.activeElement !== gs){
     const targetGs = (a.gesamtstueck !== null && a.gesamtstueck !== undefined) ? String(a.gesamtstueck) : "";
-    // Nicht auf leer zurücksetzen wenn der User bereits etwas eingetippt hat
-    // (pending Sync kann a.gesamtstueck kurzzeitig null machen)
-    if(!(gs.value !== "" && targetGs === "")) gs.value = targetGs;
+    // Gehoert der aktuelle Feldinhalt ueberhaupt zu diesem Auftrag?
+    //
+    // Die Regel darunter schuetzt einen frisch eingetippten Wert davor, vom
+    // Serverstand geleert zu werden, solange der Sync noch laeuft. Sie darf
+    // aber nur INNERHALB desselben Auftrags gelten. Ohne diese Unterscheidung
+    // blieb beim Wechsel auf einen Auftrag ohne Menge der Wert des vorigen
+    // Auftrags stehen - und wurde beim Abschliessen sogar uebernommen, weil
+    // btnAuftragAbschliessen den Feldinhalt ausliest.
+    //
+    // Bewusst an einer eigenen Kennung festgemacht und nicht an
+    // _lastAuftragId: die wird beim Kulturwechsel vorab gesetzt (siehe
+    // nkStep2Ok), womit der Wechsel hier gar nicht mehr aufgefallen waere -
+    // ausgerechnet auf dem Weg, auf dem ein abgeschlossener Auftrag mit Menge
+    // und ein neuer ohne Menge unmittelbar aufeinanderfolgen.
+    const fremderInhalt = _gesamtFeldAuftragId !== a.id;
+    if(fremderInhalt || !(gs.value !== "" && targetGs === "")) gs.value = targetGs;
+    _gesamtFeldAuftragId = a.id;
     _lastGesamtValue = gs.value;
   }
   $("gesamtInfo").textContent = totalMH > 0
