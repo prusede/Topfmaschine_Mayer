@@ -133,8 +133,8 @@ tr.missing td{background:#fde8ef;}
   <div class="kpi-row" id="kpiRow">
     <div class="kpi"><div class="kpi-val" id="kpiAuftraege">—</div><div class="kpi-lab">Aufträge</div></div>
     <div class="kpi"><div class="kpi-val" id="kpiStueck">—</div><div class="kpi-lab">Gesamtstück</div></div>
-    <div class="kpi"><div class="kpi-val" id="kpiMah">—</div><div class="kpi-lab">MA-Stunden</div></div>
-    <div class="kpi"><div class="kpi-val" id="kpiLeistung">—</div><div class="kpi-lab">Stück / MA-Std.</div></div>
+    <div class="kpi"><div class="kpi-val" id="kpiMah">—</div><div class="kpi-lab">Mitarbeiter-Std.</div></div>
+    <div class="kpi"><div class="kpi-val" id="kpiLeistung">—</div><div class="kpi-lab">Stück / Mitarbeiter-Std.</div></div>
   </div>
 
   <!-- Aufträge-Tabelle -->
@@ -150,10 +150,10 @@ tr.missing td{background:#fde8ef;}
           <th>Topf</th>
           <th>Start</th>
           <th>Ende</th>
-          <th class="num">MA</th>
-          <th class="num">MA-Std.</th>
+          <th class="num">Mitarbeiter</th>
+          <th class="num">Mitarbeiter-<br>Std.</th>
           <th class="num">Stück</th>
-          <th class="num">Stück/MAh</th>
+          <th class="num">Stück /<br>Mitarbeiter-Std.</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -175,7 +175,7 @@ tr.missing td{background:#fde8ef;}
   <h2>Tagesverlauf</h2>
   <div class="tbl-wrap">
     <table>
-      <thead><tr><th>Datum</th><th class="num">Aufträge</th><th class="num">Stück</th><th class="num">MA-Std.</th><th class="num">Stück/MAh</th></tr></thead>
+      <thead><tr><th>Datum</th><th class="num">Aufträge</th><th class="num">Stück</th><th class="num">Mitarbeiter-<br>Std.</th><th class="num">Stück /<br>Mitarbeiter-Std.</th></tr></thead>
       <tbody id="tagesBody"><tr><td colspan="5" class="no-data">–</td></tr></tbody>
     </table>
   </div>
@@ -428,7 +428,7 @@ function renderKulturAgg(byKultur){
       <div class="kul-name">${esc(d.kultur)||"—"}</div>
       <div style="flex:2;min-width:80px"><div class="perf-bar-bg"><div class="perf-bar-fg" style="width:${Math.round((d.stueck||0)/maxStueck*100)}%"></div></div></div>
       <div class="kul-stueck">${(d.stueck||0).toLocaleString("de-DE")} Stk</div>
-      <div class="kul-mah">${fmtNum(d.mh)} MAh</div>
+      <div class="kul-mah">${fmtNum(d.mh)} Mitarbeiter-Std.</div>
       <div class="kul-perf">${fmtNum(d.stueck_pro_mah,0)} St/h</div>
     `;
     c.appendChild(row);
