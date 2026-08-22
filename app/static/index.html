@@ -126,6 +126,7 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
 .gesamt-lab{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);}
 .gesamt-highlight{border:3px solid var(--leaf);border-radius:10px;padding:8px 14px;background:var(--leaf-light);display:inline-block;min-width:110px;}
 .gesamt-ma{font-size:.95rem;color:var(--ink-soft);margin-left:auto;}
+.gesamt-ma-detail{font-size:.78rem;color:var(--ink-soft);margin-top:1px;}
 .gesamt-highlight.gesamt-tile-fixed{width:200px;height:92px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;}
 .gesamt-highlight.gesamt-tile-fixed .gesamt-lab{white-space:nowrap;}
 .machine-switch-link{color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:6px 12px;font-size:.82rem;font-weight:600;text-decoration:none;white-space:nowrap;}
@@ -300,11 +301,11 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
   <div class="stat-row" id="statRow">
     <div class="stat-card">
       <div class="stat-val" id="statMA">0</div>
-      <div class="stat-lab">Mitarbeiter aktiv</div>
+      <div class="stat-lab">Personen aktiv</div>
     </div>
     <div class="stat-card">
       <div class="stat-val" id="statAufsicht">0</div>
-      <div class="stat-lab">Aufsichten</div>
+      <div class="stat-lab">davon Aufsicht</div>
     </div>
     <div class="stat-card">
       <div class="stat-val" id="statStueck">—</div>
@@ -360,7 +361,13 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
       </div>
       <div style="color:var(--ink-soft);font-size:.85rem" id="gesamtInfo">Manuell erfassen – Mayer hat keinen automatischen Zähler.</div>
 
-      <div class="gesamt-ma" id="maInfo" style="margin-left:16px"></div>
+      <div style="margin-left:auto">
+        <div class="gesamt-ma" id="maInfo"></div>
+        <!-- Aufschluesselung eine Zeile tiefer: die Aufsicht zaehlt in der
+             Kopfzahl darueber voll mit (so rechnet auch die Auswertung), was
+             ohne diesen Zusatz niemand sieht. -->
+        <div class="gesamt-ma-detail" id="maInfoDetail"></div>
+      </div>
     </div>
   </div>
 
@@ -1204,14 +1211,17 @@ function renderAll(){
   // Schicht-beenden Button: nur aktiv wenn Auftrag offen
 
   // Stat-Kacheln (auch ohne Auftrag sichtbar)
-  // "Mitarbeiter aktiv" zaehlt bewusst ALLE aktiven Personen inkl. Aufsicht -
-  // die Aufsicht ist eine aktive Mitarbeiterin, keine Sonderkategorie.
-  // "Aufsichten" bleibt zusaetzlich als Teilmenge sichtbar (informativ).
+  // "Personen aktiv" zaehlt bewusst ALLE aktiven Personen inkl. Aufsicht -
+  // die Aufsicht ist eine aktive Mitarbeiterin, keine Sonderkategorie. Genau
+  // so rechnet auch die Auswertung: sie unterscheidet nirgends nach Rolle.
+  // "davon Aufsicht" ist die Teilmenge - die Beschriftung sagt das jetzt auch,
+  // vorher las sich "Mitarbeiter aktiv 8" neben "Aufsichten 1" wie neun Leute.
   // Sammelzeilen zaehlen mit ihrer Personenzahl, nicht als eine Person -
   // sowohl bei den Koepfen als auch bei den Stunden (siehe maAnzahl()).
   const maRows = a ? (a.mitarbeiter || []) : [];
   const activeMA  = maRows.filter(m => !m.ende).reduce((s,m) => s + maAnzahl(m), 0);
-  const activeAuf = maRows.filter(m => m.rolle === "aufsicht" && !m.ende).length;
+  const activeAuf = maRows.filter(m => m.rolle === "aufsicht" && !m.ende)
+                          .reduce((s,m) => s + maAnzahl(m), 0);
   const totalMH   = maRows.reduce((s,m) => s + nettoH(m.start, m.ende, m.pause) * maAnzahl(m), 0);
   const stk = a && (a.gesamtstueck !== null && a.gesamtstueck !== undefined) ? a.gesamtstueck : "—";
   $("statMA").textContent       = activeMA;
@@ -1276,8 +1286,25 @@ function renderAll(){
   $("gesamtInfo").textContent = totalMH > 0
     ? `${totalMH.toLocaleString("de-DE",{maximumFractionDigits:1})} Netto-Std.`
     : "";
-  const activeMa = maRows.filter(m => !m.ende);
-  $("maInfo").textContent = `${activeMa.length} aktiv · ${maRows.length} gesamt`;
+  // Kopfzahl neben der Menge.
+  //
+  // Gezaehlt werden Personen, nicht Zeilen: eine Sammelzeile mit sieben Leuten
+  // stand hier frueher als eine einzige, womit die Anzeige "2 aktiv" meldete,
+  // waehrend acht Personen an der Maschine standen und die Kachel oben
+  // richtigerweise 8 zeigte. Zwei Zahlen fuer dasselbe auf einem Bildschirm.
+  //
+  // Die Aufsicht zaehlt voll mit - so rechnet auch die Auswertung, die
+  // nirgends nach Rolle unterscheidet. Die Aufschluesselung darunter macht
+  // das sichtbar, ohne die Kopfzahl zu zerlegen.
+  const aufsichtKoepfe = maRows.filter(m => m.rolle === "aufsicht" && !m.ende)
+                               .reduce((s,m) => s + maAnzahl(m), 0);
+  const mitarbeiterKoepfe = activeMA - aufsichtKoepfe;
+  const _pers = (n, ein, viele) => `${n} ${n === 1 ? ein : viele}`;
+  $("maInfo").textContent = `${_pers(activeMA, "Person", "Personen")} am Auftrag`;
+  const teile = [];
+  if(aufsichtKoepfe > 0)    teile.push(_pers(aufsichtKoepfe, "Aufsicht", "Aufsichten"));
+  if(mitarbeiterKoepfe > 0) teile.push(_pers(mitarbeiterKoepfe, "Mitarbeiter", "Mitarbeiter"));
+  $("maInfoDetail").textContent = teile.join(" · ");
 
   renderMaList(a, closed);
 
