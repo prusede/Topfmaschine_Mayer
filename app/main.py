@@ -546,6 +546,56 @@ def _ist_nachzuegler(auftrag: Optional[dict], updated_ms: Optional[int]) -> bool
     return int(updated_ms) <= grenze + _NACHZUEGLER_TOLERANZ_MS
 
 
+def _auftragszeiten_nachfuehren(auftrag_id: str) -> None:
+    """Auftragsstart und -ende ergeben sich aus den Mitarbeiterzeiten.
+
+    Die Erfassung kennt kein eigenes Feld fuer die Auftragszeit -- die Aufsicht
+    traegt allein die Zeiten der Personen ein, der Auftragsstart wurde beim
+    Anlegen aus der Uhr genommen. Wird ein Auftrag erst mittags angelegt,
+    obwohl seit dem Morgen gearbeitet wird, stehen in Auftragstabelle und CSV
+    Zeiten, die mit den Personalzeiten nichts zu tun haben. Uebernommen aus
+    Stolze, wo derselbe Auseinanderlauf die stuendliche Auswertung verdorben
+    hat; hier geht die Auftragszeit in keine Rechnung ein, gelesen wird sie
+    trotzdem.
+
+    Das Ende bleibt leer, solange auch nur eine Person angemeldet ist: erst
+    wenn alle abgemeldet sind, steht fest, wann zuletzt gearbeitet wurde. Bei
+    einem bereits abgeschlossenen Auftrag wird ein vorhandenes Ende nie
+    geleert -- eine wieder angemeldete Person darf einen Abschluss nicht
+    stillschweigend aufheben.
+
+    Der Vergleich laeuft ueber die Zeichenketten "HH:MM", was fuer die
+    Betriebszeiten genuegt. Ein Auftrag ueber Mitternacht kaeme hier falsch
+    heraus, existiert aber nicht.
+    """
+    auftrag = db.get_auftrag_by_id(auftrag_id)
+    if not auftrag:
+        return
+    zeilen = auftrag.get("mitarbeiter") or []
+    starts = [str(z.get("start") or "").strip() for z in zeilen if str(z.get("start") or "").strip()]
+    if not starts:
+        # Ohne erfasste Person gibt es nichts abzuleiten; die bisherige Zeit
+        # bleibt stehen, statt sie zu loeschen.
+        return
+
+    neu_start = min(starts)
+    enden = [str(z.get("ende") or "").strip() for z in zeilen if str(z.get("ende") or "").strip()]
+    alle_beendet = len(enden) == len(zeilen)
+    neu_ende = max(enden) if (alle_beendet and enden) else ""
+    if not neu_ende and auftrag.get("status") == "abgeschlossen":
+        neu_ende = str(auftrag.get("auftrag_ende") or "")
+
+    fields: dict = {}
+    if neu_start != str(auftrag.get("auftrag_start") or ""):
+        fields["auftrag_start"] = neu_start
+    if neu_ende != str(auftrag.get("auftrag_ende") or ""):
+        fields["auftrag_ende"] = neu_ende
+    if not fields:
+        return
+    db.update_auftrag(auftrag_id, fields)
+    db.log_audit("auftragszeit_abgeleitet", "system", auftrag_id, str(fields))
+
+
 # ── Statische Dateien ─────────────────────────────────────────────────────────
 @app.get("/")
 def index():
@@ -707,6 +757,7 @@ def scan_worker(body: ScanIn):
         "created_ms": ts,
         "updated_ms": ts,
     })
+    _auftragszeiten_nachfuehren(body.auftrag_id)
     if body.sammel:
         db.log_audit("sammel_add", _actor(), body.auftrag_id, f"anzahl={anzahl},start={start}")
     elif body.rolle == "aufsicht":
@@ -759,6 +810,7 @@ def update_worker(body: WorkerUpdateIn):
         c.execute(f"UPDATE mitarbeiter_zeiten SET {sets}, updated_ms=:ts WHERE id=:mz_id",
                   fields)
         c.commit()
+    _auftragszeiten_nachfuehren(mz["auftrag_id"])
     db.log_audit("worker_update", _actor(), body.mz_id,
                  f"auftrag={mz['auftrag_id']},locked={locked},"
                  f"nachzuegler={nachzuegler},fields={list(fields.keys())}")
@@ -768,7 +820,13 @@ def update_worker(body: WorkerUpdateIn):
 @app.post("/api/worker/delete")
 def delete_worker(body: WorkerDeleteIn):
     check_admin(body.pw)
+    mz = db.get_mitarbeiter_by_id(body.mz_id)
+    auftrag_id = (mz or {}).get("auftrag_id") or body.auftrag_id
     db.remove_mitarbeiter(body.mz_id)
+    # Faellt die frueheste oder letzte Zeile weg, verschiebt sich die
+    # Auftragszeit mit.
+    if auftrag_id:
+        _auftragszeiten_nachfuehren(auftrag_id)
     db.log_audit("worker_delete", _actor(body.pw), body.mz_id,
                  f"auftrag={body.auftrag_id}")
     return {"ok": True}
@@ -810,6 +868,10 @@ def close_auftrag(body: AuftragCloseIn):
     db.set_all_active_workers_ende(body.auftrag_id, body.auftrag_ende)
     db.close_auftrag(body.auftrag_id, body.auftrag_ende, body.gesamtstueck,
                      _actor())
+    # Nach dem Setzen der Endzeiten stimmen Auftragszeit und Personalzeiten
+    # ueberein; hier faellt insbesondere ein Auftragsstart auf, der beim
+    # Anlegen aus der Uhr kam statt vom ersten Mitarbeiter.
+    _auftragszeiten_nachfuehren(body.auftrag_id)
     db.log_audit("auftrag_close", _actor(),
                  body.auftrag_id,
                  f"ende={body.auftrag_ende},stueck={body.gesamtstueck}")
@@ -885,6 +947,10 @@ def neue_kultur(body: NeueKulturIn):
         transfer_workers,
     )
 
+    # Beide Seiten des Wechsels: der abgeschlossene Auftrag bekommt die Zeiten
+    # seiner Personen, der neue die der uebernommenen.
+    _auftragszeiten_nachfuehren(body.auftrag_id)
+    _auftragszeiten_nachfuehren(body.new_auftrag_id)
     db.log_audit("neue_kultur", _actor(),
                  body.new_auftrag_id,
                  f"von={body.auftrag_id},stueck={body.gesamtstueck},"
@@ -983,6 +1049,10 @@ def admin_edit_auftrag(body: AuftragEditIn):
     if body.sonst         is not None: fields["sonst"]          = body.sonst
     fields["changed_by"] = _actor(body.pw)
     db.update_auftrag(body.auftrag_id, fields)
+    # Die Auftragszeit folgt auch hier den Personalzeiten. Eine von Hand
+    # gesetzte Zeit haette sonst nur bis zur naechsten Zeitkorrektur Bestand -
+    # zwei Wahrheiten, die frueher oder spaeter auseinanderlaufen.
+    _auftragszeiten_nachfuehren(body.auftrag_id)
     db.log_audit("admin_auftrag_edit", _actor(body.pw), body.auftrag_id, str(fields))
     return {"ok": True}
 
@@ -1051,6 +1121,7 @@ def admin_edit_worker(body: WorkerEditIn):
                 fields,
             )
             c.commit()
+    _auftragszeiten_nachfuehren(mz.get("auftrag_id") or body.auftrag_id)
     # Die alte Personalnummer gehoert ins Protokoll, sonst laesst sich eine
     # Korrektur nachtraeglich nicht mehr nachvollziehen.
     vorher = f",vorher_pnr={mz.get('pnr')}" if "pnr" in fields else ""
@@ -1094,6 +1165,10 @@ def _build_auftrag_summary(rows: list) -> list:
             anzahl = int(r.get("mz_anzahl") or 1)
             sammel = bool(r.get("mz_sammel"))
             auftraege[aid]["workers"].append({
+                # Die Zeilen-ID braucht die Auswertung, um eine Korrektur an
+                # /api/admin/worker/edit schicken zu koennen. Ohne sie liesse
+                # sich dort nur lesen.
+                "id":     r["mz_id"],
                 "pnr":    r["pnr"],
                 "rolle":  r["rolle"],
                 "start":  r.get("mz_start") or "",

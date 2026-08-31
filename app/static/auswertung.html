@@ -43,8 +43,12 @@ h2:first-child{margin-top:0;}
 /* Tabellen */
 .tbl-wrap{overflow-x:auto;margin-bottom:24px;}
 table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
-th{background:var(--leaf-dark);color:#fff;padding:9px 13px;font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;text-align:left;white-space:nowrap;}
-td{padding:9px 13px;font-size:.9rem;border-bottom:1px solid var(--paper-line);vertical-align:middle;}
+/* Seitlicher Abstand knapp gehalten: mit den ausgeschriebenen Ueberschriften
+   ("Mitarbeiter-Std.", "Stück / Mitarbeiter-Std.") passt die Auftragstabelle
+   sonst nicht mehr in die Seitenbreite und der Browser quetscht stattdessen
+   die Zellen zusammen. */
+th{background:var(--leaf-dark);color:#fff;padding:9px 9px;font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;text-align:left;white-space:nowrap;}
+td{padding:9px 9px;font-size:.9rem;border-bottom:1px solid var(--paper-line);vertical-align:middle;}
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:var(--leaf-light);}
 tr.missing td{background:#fde8ef;}
@@ -52,11 +56,62 @@ tr.missing td{background:#fde8ef;}
 .pill-offen{background:#e6f4ea;color:var(--leaf-dark);}
 .pill-geschl{background:var(--amber-soft);color:var(--amber-dark);}
 .num{font-variant-numeric:tabular-nums;text-align:right;}
+/* Auftragsnummer und Status duerfen nicht umbrechen: bei zu wenig Platz hat
+   der Browser sonst genau diese beiden Zellen zusammengequetscht - die Nummer
+   dreizeilig, die Statusmarke rechts abgeschnitten. Lieber scrollt der
+   Rahmen, als dass Inhalt zerdrueckt wird. */
+td.zelle-nr, td.zelle-status{white-space:nowrap;}
 .no-data{text-align:center;padding:36px;color:var(--ink-soft);font-size:.95rem;}
 
 /* Leistungs-Bar */
 .perf-bar-bg{background:var(--paper-line);border-radius:4px;height:7px;min-width:80px;overflow:hidden;}
 .perf-bar-fg{height:100%;background:var(--leaf);border-radius:4px;}
+
+/* Korrektur-Knopf je Auftragszeile. Erscheint nur mit Schreibrolle; ohne sie
+   bleibt die Spalte leer, damit die Tabelle in beiden Faellen gleich breit
+   ist und die Spaltenzahl der Platzhalterzeilen stimmt. */
+td.zelle-edit{width:1%;white-space:nowrap;padding-left:4px;padding-right:8px;}
+.btn-zeile-edit{border:1.5px solid var(--paper-line);background:#fff;color:var(--ink-soft);
+  border-radius:7px;padding:4px 9px;font-size:.85rem;cursor:pointer;line-height:1.1;}
+.btn-zeile-edit:hover{border-color:var(--leaf);color:var(--leaf-dark);}
+
+/* Korrektur-Dialog. Bewusst derselbe Zuschnitt wie der Dialog der Erfassung -
+   wer beide benutzt, soll nicht zwei Bedienungen lernen muessen. */
+.modal-bg{position:fixed;inset:0;background:rgba(33,37,31,.6);display:none;align-items:center;
+  justify-content:center;z-index:120;padding:16px;}
+.modal-bg.show{display:flex;}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:720px;max-height:90vh;
+  display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.25);}
+.modal h3{margin:0;padding:16px 20px;border-bottom:1px solid var(--paper-line);font-size:1.05rem;
+  display:flex;align-items:center;gap:10px;}
+.modal h3 .x{margin-left:auto;background:transparent;border:none;font-size:1.3rem;cursor:pointer;
+  color:var(--ink-soft);line-height:1;padding:0 4px;}
+.modal .mc{padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
+.modal .mf{padding:12px 20px;border-top:1px solid var(--paper-line);display:flex;gap:10px;
+  justify-content:flex-end;}
+.modal label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--ink-soft);display:block;margin-bottom:4px;}
+.modal input,.modal select{padding:8px 10px;border:1.5px solid var(--paper-line);border-radius:7px;
+  font-size:.95rem;font-family:inherit;background:var(--paper);color:var(--ink);}
+.modal input:focus,.modal select:focus{outline:none;border-color:var(--leaf);}
+.mbtn{border-radius:8px;padding:9px 18px;font-size:.9rem;font-weight:700;cursor:pointer;border:none;}
+.mbtn.ghost{background:#fff;border:1.5px solid var(--paper-line);color:var(--ink-soft);}
+.mbtn.primary{background:var(--leaf);color:#fff;}
+.mbtn:disabled{opacity:.5;cursor:default;}
+.sec-head{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--ink-soft);margin-bottom:8px;}
+.ma-zeile{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
+.pausen-stufen{display:inline-flex;gap:4px;}
+.btn-pause{border:1.5px solid var(--paper-line);background:#fff;color:var(--ink-soft);
+  border-radius:6px;padding:4px 9px;font-size:.9rem;cursor:pointer;line-height:1.1;}
+.btn-pause:hover{border-color:var(--leaf);color:var(--leaf-dark);}
+.edit-hinweis{background:var(--amber-soft);color:var(--amber-dark);border-radius:8px;
+  padding:9px 12px;font-size:.84rem;}
+/* Abgeleitete Zeit: sieht wie ein Feld aus, ist aber keines. Der Unterschied
+   muss auf den ersten Blick erkennbar sein, sonst tippt jemand dagegen an. */
+.abgeleitet{padding:8px 10px;border:1.5px dashed var(--paper-line);border-radius:7px;
+  background:transparent;color:var(--ink-soft);font-size:.95rem;font-variant-numeric:tabular-nums;}
+.edit-fehler{color:var(--danger);font-size:.86rem;font-weight:600;display:none;}
 
 /* Kultur-Aggregation */
 .kul-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--paper-line);}
@@ -155,10 +210,11 @@ tr.missing td{background:#fde8ef;}
           <th class="num">Stück</th>
           <th class="num">Stück /<br>Mitarbeiter-Std.</th>
           <th>Status</th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="auftraegeBody">
-        <tr><td colspan="12" class="no-data">Daten laden …</td></tr>
+        <tr><td colspan="13" class="no-data">Daten laden …</td></tr>
       </tbody>
     </table>
   </div>
@@ -194,6 +250,47 @@ tr.missing td{background:#fde8ef;}
      Ohne das Skript endet die Sitzung nach 60 Minuten. -->
 <script defer src="https://10.10.0.210:8451/static/erf-session.js"></script>
 
+<!-- Korrektur-Dialog. Er greift dieselben Endpunkte ab wie der Dialog der
+     Erfassung, erreicht damit aber auch Auftraege vergangener Tage: die
+     Erfassung laedt nur den heutigen Tag, eine spaeter erkannte falsche
+     Startzeit war dort nicht mehr zu berichtigen. -->
+<div class="modal-bg" id="korrModal">
+  <div class="modal">
+    <h3>✎ Auftrag korrigieren <span id="korrTitel" style="font-weight:400;color:var(--ink-soft);font-size:.9rem"></span>
+      <button class="x" id="korrClose">✕</button></h3>
+    <div class="mc">
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <!-- Auftragsstart und -ende sind abgeleitet, nicht eingegeben: sie
+             ergeben sich aus der fruehesten und der letzten Personalzeit.
+             Ein eigenes Eingabefeld waere eine zweite Wahrheit neben den
+             Mitarbeiterzeiten - genau daran ist der 27.08. gescheitert. -->
+        <div style="flex:1;min-width:110px"><label>Auftragsstart</label>
+          <div class="abgeleitet" id="korrStart">—</div></div>
+        <div style="flex:1;min-width:110px"><label>Auftragsende</label>
+          <div class="abgeleitet" id="korrEnde">—</div></div>
+        <div style="flex:1;min-width:110px"><label>Gesamtstück</label><input type="text" inputmode="numeric" id="korrStueck" style="width:100%"></div>
+      </div>
+      <div>
+        <label>Status</label>
+        <select id="korrStatus" style="width:100%">
+          <option value="offen">offen</option>
+          <option value="abgeschlossen">abgeschlossen</option>
+        </select>
+      </div>
+      <div>
+        <div class="sec-head">Mitarbeiter-Zeiten</div>
+        <div id="korrMaRows"></div>
+      </div>
+      <div class="edit-hinweis" id="korrHinweis"></div>
+      <div class="edit-fehler" id="korrFehler"></div>
+    </div>
+    <div class="mf">
+      <button class="mbtn ghost" id="korrCancel">Abbrechen</button>
+      <button class="mbtn primary" id="korrOk">Speichern</button>
+    </div>
+  </div>
+</div>
+
 <script>
 "use strict";
 const pad = n => String(n).padStart(2,"0");
@@ -224,11 +321,26 @@ function _fetchTimeout(url, opts, timeoutMs){
 const AUTH_BASE = "https://10.10.0.210:8451";
 const APP_KEY   = "topfmaschine_mayer";
 let _kulturen = [];
+/* Zuletzt geladene Auftragsliste. Gebraucht, um die Tabelle neu zu zeichnen,
+   sobald die Rolle der Sitzung feststeht - sie trifft oft erst ein, wenn die
+   Tabelle schon steht. */
+let _letzteSummaries = [];
 
 /* ── Anmeldung ─────────────────────────────────────────────────── */
+/* Rolle der laufenden Sitzung. Sie entscheidet allein darueber, ob der
+   Korrektur-Knopf ueberhaupt erscheint - durchgesetzt wird die Berechtigung
+   ohnehin am Server, der jede Korrektur gegen die Sitzung prueft. */
+let _rolle = null;
+function darfSchreiben(){ return _rolle === "meister" || _rolle === "admin"; }
+
 function kopfzeileZeichnen(name, rolle){
   $("userBadge").textContent = name ? `${name} · ${rolle || "kein Zugriff"}` : "";
   $("btnAbmelden").style.display = name ? "" : "none";
+  const vorher = darfSchreiben();
+  _rolle = rolle || null;
+  // Die Rolle trifft haeufig erst ein, wenn die Tabelle schon steht. Ohne das
+  // erneute Zeichnen fehlte der Korrektur-Knopf bis zum naechsten Laden.
+  if(darfSchreiben() !== vorher && _letzteSummaries.length) renderAuftraege(_letzteSummaries);
 }
 
 async function doAuth(){
@@ -358,6 +470,7 @@ async function loadData(){
       _fetchTimeout("/api/auswertung/summary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis})}).then(r=>r.json()),
       _fetchTimeout("/api/auswertung/kulturen",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis})}).then(r=>r.json()),
     ]);
+    _letzteSummaries = Array.isArray(summaries) ? summaries : [];
     renderKPIs(summaries);
     renderAuftraege(summaries);
     renderKulturAgg(byKultur);
@@ -387,19 +500,19 @@ function kulturName(value){ return value || "—"; }
 
 function renderAuftraege(rows){
   const tbody=$("auftraegeBody"); tbody.innerHTML="";
-  if(!rows.length){ tbody.innerHTML=`<tr><td colspan="12" class="no-data">Keine Aufträge im Zeitraum</td></tr>`; return; }
+  if(!rows.length){ tbody.innerHTML=`<tr><td colspan="13" class="no-data">Keine Aufträge im Zeitraum</td></tr>`; return; }
   // Filter nach Kultur
   const kf=$("fKultur").value;
   const kText=kf ? $("fKultur").selectedOptions[0].textContent : "";
   const filtered=kf?rows.filter(r=>String(r.kultur||"")===kText):rows;
-  if(!filtered.length){ tbody.innerHTML=`<tr><td colspan="12" class="no-data">Keine Treffer für gewählte Kultur</td></tr>`; return; }
+  if(!filtered.length){ tbody.innerHTML=`<tr><td colspan="13" class="no-data">Keine Treffer für gewählte Kultur</td></tr>`; return; }
   filtered.forEach(r => {
     const tr=document.createElement("tr");
     if(r.has_missing_data) tr.className = "missing";
     if(r.missing_fields && r.missing_fields.length) tr.title = "Fehlende Angaben: " + r.missing_fields.join(", ");
     const leistung=r.total_mh>0&&r.gesamtstueck?r.gesamtstueck/r.total_mh:null;
     tr.innerHTML=`
-      <td style="font-weight:700;font-size:.85rem">${esc(r.auftragsnr)||"—"}</td>
+      <td class="zelle-nr" style="font-weight:700;font-size:.85rem">${esc(r.auftragsnr)||"—"}</td>
       <td style="font-size:.85rem">${displayDate(r.datum)}</td>
       <td>${esc(kulturName(r.kultur))}</td>
       <td style="font-size:.85rem">${esc(r.arbeit)||"—"}</td>
@@ -410,11 +523,202 @@ function renderAuftraege(rows){
       <td class="num">${fmtNum(r.total_mh)}</td>
       <td class="num">${r.gesamtstueck!==null&&r.gesamtstueck!==undefined?r.gesamtstueck.toLocaleString("de-DE"):"—"}</td>
       <td class="num">${fmtNum(leistung,0)}</td>
-      <td><span class="pill ${r.status==="abgeschlossen"?"pill-geschl":"pill-offen"}">${esc(r.status)}</span></td>
+      <td class="zelle-status"><span class="pill ${r.status==="abgeschlossen"?"pill-geschl":"pill-offen"}">${esc(r.status)}</span></td>
+      <td class="zelle-edit">${darfSchreiben()
+        ? `<button type="button" class="btn-zeile-edit" title="Auftrag korrigieren">✎</button>`
+        : ""}</td>
     `;
+    const btnE = tr.querySelector(".btn-zeile-edit");
+    if(btnE) btnE.onclick = () => korrekturOeffnen(r);
     tbody.appendChild(tr);
   });
 }
+
+/* ── Korrektur eines Auftrags ──────────────────────────────────────────
+   Bewusst dieselben beiden Endpunkte wie in der Erfassung:
+   /api/admin/auftrag/edit fuer den Auftrag, /api/admin/worker/edit fuer die
+   einzelnen Zeitzeilen. Beide pruefen die Sitzung selbst und nehmen auch
+   abgeschlossene Auftraege an - hier kommt nichts hinzu, was der Server nicht
+   ohnehin schon erlaubt. Der Umweg ueber die Outbox der Erfassung entfaellt:
+   diese Seite laeuft nur mit Verbindung, ein Vormerken waere sinnlos. */
+let _korrAuftrag = null;
+
+/* Die drei ueblichen Stufen als Schnellwahl, daneben ein freies Feld. Eine
+   Auswahlliste allein reichte nicht: eine abweichende Pause - laenger, kuerzer
+   oder gar keine - muss sich eintragen lassen, ohne dass jemand die Liste
+   erweitert. Die Grenzen zieht der Server (validate_pause): nicht negativ,
+   nicht unrealistisch gross, nie laenger als die Anwesenheit. */
+const PAUSEN_STUFEN = [0.25, 0.5, 0.75];
+
+/* Anzeige mit Komma, Eingabe mit Komma oder Punkt. */
+function pauseAnzeige(v){
+  const n = Number(v || 0);
+  return String(Math.round(n * 100) / 100).replace(".", ",");
+}
+function pauseLesen(text){
+  const s = String(text ?? "").trim().replace(",", ".");
+  if(s === "") return 0;
+  const n = Number(s);
+  return isNaN(n) ? null : n;
+}
+
+function korrekturOeffnen(r){
+  _korrAuftrag = r;
+  $("korrTitel").textContent = `${r.auftragsnr || ""} · ${displayDate(r.datum)}`;
+  $("korrStart").textContent = r.auftrag_start || "—";
+  $("korrEnde").textContent  = r.auftrag_ende  || "laufend";
+  $("korrStueck").value = (r.gesamtstueck !== null && r.gesamtstueck !== undefined) ? r.gesamtstueck : "";
+  $("korrStatus").value = r.status === "abgeschlossen" ? "abgeschlossen" : "offen";
+  $("korrFehler").style.display = "none";
+
+  // Der Hinweis nennt genau die Folge, die den Anlass fuer diesen Dialog
+  // gebildet hat: die Stundenverteilung haengt an der Auftragszeit.
+  // Ohne stündliche Auswertung entfällt der Hinweis auf die Balken, den die
+  // Stolze-Fassung an dieser Stelle trägt.
+  $("korrHinweis").textContent =
+    "Auftragsstart und -ende ergeben sich aus den Mitarbeiterzeiten darunter: "
+    + "die früheste Startzeit und, sobald alle abgemeldet sind, die letzte "
+    + "Endzeit. Mitarbeiter-Stunden und Stück je Mitarbeiter-Stunde rechnen "
+    + "sich aus den Personalzeiten, nicht aus der Auftragszeit.";
+
+  const box = $("korrMaRows"); box.innerHTML = "";
+  const rows = r.workers || [];
+  if(!rows.length){
+    box.innerHTML = `<div style="color:var(--ink-soft);font-size:.88rem">Keine Mitarbeiterzeilen erfasst.</div>`;
+  }
+  rows.forEach(m => {
+    const d = document.createElement("div");
+    d.className = "ma-zeile";
+    const sammel = !!m.sammel;
+    d.innerHTML = `
+      ${sammel
+        ? `<span style="min-width:78px;font-weight:700;font-size:.9rem">👥 ${m.anzahl || 1}</span>`
+        : `<input type="text" inputmode="numeric" data-mzid="${m.id}" data-field="pnr"
+                  value="${esc(m.pnr)}" maxlength="5" title="Personalnummer ändern"
+                  style="width:82px;font-weight:700">`}
+      <span style="font-size:.72rem;color:var(--ink-soft);min-width:52px">${sammel ? "sammel" : esc(m.rolle)}</span>
+      <label style="display:inline;margin:0;text-transform:none;letter-spacing:0">Start</label>
+      <input type="time" data-mzid="${m.id}" data-field="start" value="${m.start || ""}">
+      <label style="display:inline;margin:0;text-transform:none;letter-spacing:0">Ende</label>
+      <input type="time" data-mzid="${m.id}" data-field="ende" value="${m.ende || ""}">
+      <button type="button" class="mbtn ghost btn-wieder-an" style="padding:5px 10px;font-size:.8rem"
+              title="Endzeit löschen – Mitarbeiter zählt wieder als anwesend"
+              ${m.ende ? "" : "disabled"}>↩ wieder anmelden</button>
+      <label style="display:inline;margin:0;text-transform:none;letter-spacing:0">Pause</label>
+      <input type="text" inputmode="decimal" data-mzid="${m.id}" data-field="pause"
+             value="${pauseAnzeige(m.pause)}" title="Pause in Stunden, z. B. 0,25"
+             style="width:62px;text-align:right">
+      <span style="font-size:.8rem;color:var(--ink-soft)">h</span>
+      <span class="pausen-stufen">
+        ${PAUSEN_STUFEN.map(v => `<button type="button" class="btn-pause" data-p="${v}"
+            title="Pause auf ${pauseAnzeige(v)} Stunden setzen">${pauseAnzeige(v)} h</button>`).join("")}
+      </span>
+    `;
+    // Die Stufen schreiben nur in das Feld - gespeichert wird auch hier erst
+    // beim Klick auf Speichern.
+    d.querySelectorAll(".btn-pause").forEach(b => {
+      b.onclick = () => { d.querySelector('[data-field="pause"]').value = pauseAnzeige(b.dataset.p); };
+    });
+    const btnAn = d.querySelector(".btn-wieder-an");
+    if(btnAn) btnAn.onclick = () => {
+      d.querySelector('[data-field="ende"]').value = "";
+      d.querySelector('[data-field="pause"]').value = "0";
+      btnAn.disabled = true;
+    };
+    box.appendChild(d);
+  });
+  $("korrModal").classList.add("show");
+}
+
+function korrekturSchliessen(){ $("korrModal").classList.remove("show"); _korrAuftrag = null; }
+$("korrClose").onclick  = korrekturSchliessen;
+$("korrCancel").onclick = korrekturSchliessen;
+$("korrModal").addEventListener("click", ev => { if(ev.target === $("korrModal")) korrekturSchliessen(); });
+
+function korrFehlerZeigen(text){
+  const el = $("korrFehler");
+  el.textContent = text;
+  el.style.display = "block";
+}
+
+$("korrOk").onclick = async () => {
+  const r = _korrAuftrag; if(!r) return;
+  const btn = $("korrOk");
+  btn.disabled = true;
+  $("korrFehler").style.display = "none";
+
+  try {
+    // Zuerst die Zeitzeilen: schlaegt eine davon fehl, bleibt der Auftrag
+    // unveraendert und die Meldung nennt die Ursache. Umgekehrt haette man
+    // einen halb korrigierten Auftrag.
+    for(const m of (r.workers || [])){
+      const felder = {};
+      const eingabe = f => $("korrMaRows").querySelector(`[data-mzid="${m.id}"][data-field="${f}"]`);
+      const pnrEl = eingabe("pnr");
+      if(pnrEl && String(pnrEl.value).trim() !== String(m.pnr || "")) felder.pnr = String(pnrEl.value).trim();
+      const startEl = eingabe("start");
+      if(startEl && startEl.value !== (m.start || "")) felder.start = startEl.value;
+      const endeEl = eingabe("ende");
+      if(endeEl && endeEl.value !== (m.ende || "")) felder.ende = endeEl.value;
+      const pauseEl = eingabe("pause");
+      if(pauseEl){
+        const p = pauseLesen(pauseEl.value);
+        // Unlesbares gar nicht erst abschicken: der Server wuerde es zwar
+        // ablehnen, die Meldung nennt aber nicht die Zeile, um die es geht.
+        if(p === null || p < 0){
+          korrFehlerZeigen(`Pause bei ${m.sammel ? "der Sammelzeile" : "PNR " + (m.pnr || "?")}`
+            + ": bitte eine Zahl in Stunden eintragen, z. B. 0,25.");
+          btn.disabled = false;
+          pauseEl.focus();
+          return;
+        }
+        if(p !== Number(m.pause || 0)) felder.pause = p;
+      }
+      if(!Object.keys(felder).length) continue;
+
+      const antwort = await _fetchTimeout("/api/admin/worker/edit", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify(Object.assign({ mz_id: m.id, auftrag_id: r.id }, felder)),
+      });
+      if(!antwort.ok){
+        let grund = "Die Zeitkorrektur wurde abgelehnt.";
+        try { const d = await antwort.json(); if(d && d.detail) grund = d.detail; } catch(e){}
+        korrFehlerZeigen(grund);
+        btn.disabled = false;
+        return;
+      }
+    }
+
+    // Auftragsstart und -ende stehen bewusst nicht in der Sendung: der Server
+    // leitet sie nach jeder Zeitkorrektur aus den Mitarbeiterzeilen ab.
+    const koerper = { auftrag_id: r.id, status: $("korrStatus").value };
+    const stk = String($("korrStueck").value).trim();
+    if(stk !== ""){
+      const zahl = parseInt(stk.replace(/\./g, ""), 10);
+      if(isNaN(zahl) || zahl < 0){ korrFehlerZeigen("Gesamtstück muss eine Zahl sein."); btn.disabled = false; return; }
+      koerper.gesamtstueck = zahl;
+    }
+
+    const antwort = await _fetchTimeout("/api/admin/auftrag/edit", {
+      method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(koerper),
+    });
+    if(!antwort.ok){
+      let grund = "Die Korrektur wurde abgelehnt.";
+      try { const d = await antwort.json(); if(d && d.detail) grund = d.detail; } catch(e){}
+      korrFehlerZeigen(grund);
+      btn.disabled = false;
+      return;
+    }
+  } catch(e){
+    korrFehlerZeigen("Keine Verbindung – nichts gespeichert.");
+    btn.disabled = false;
+    return;
+  }
+
+  btn.disabled = false;
+  korrekturSchliessen();
+  await loadData();   // Kennzahlen, Stundenansicht und Tabelle neu rechnen
+};
 
 function renderKulturAgg(byKultur){
   const c=$("kulturAgg"); c.innerHTML="";
