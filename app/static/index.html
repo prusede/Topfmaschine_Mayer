@@ -278,6 +278,7 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
   <a class="machine-switch-link" href="https://10.10.0.210:8446/" title="Zur Stolze-Erfassung wechseln">⇄ Stolze</a>
   <input class="session-field" id="fService" placeholder="Aufsicht-PNR P1001–P99999" type="text" inputmode="text" maxlength="6" autocomplete="off" />
   <input class="session-field" id="fDatum" style="min-width:110px" readonly />
+  <button id="btnChangeDate" title="Fuer einen anderen Tag Auftraege ansehen oder rueckwirkend anlegen" style="display:none;background:var(--amber);color:#7a4d0c;border:none;border-radius:6px;padding:4px 10px;font-size:.8rem;cursor:pointer;font-weight:600;">✎ Datum</button>
 </header>
 
 <main>
@@ -418,7 +419,6 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
     <button class="btn-tool btn-ghost"   id="btnEditAuftrag">✎ Auftrag bearbeiten</button>
     <button class="btn-tool btn-danger"  id="btnDeleteAuftrag">🗑 Auftrag löschen</button>
     <button class="btn-tool btn-ghost"   id="btnTagWiederOeffnen" style="display:none">🔓 Tag wieder öffnen</button>
-    <button class="btn-tool btn-ghost"   id="btnChangeDate" title="Fuer einen anderen Tag Auftraege ansehen oder rueckwirkend anlegen">✎ Datum wechseln</button>
   </div>
 
   <div style="font-size:.75rem;color:var(--ink-soft);margin-top:8px" id="lastReload"></div>
@@ -896,6 +896,11 @@ function refreshAdminUI(){
 
   const reopenBtn = $("btnTagWiederOeffnen");
   if(reopenBtn) reopenBtn.style.display = (darf && state.dayIsClosed) ? "" : "none";
+
+  // Im Header statt in der scrollbaren Admin-Toolbar - direkt sichtbar, wie
+  // in Halle1/Rapido/Blumenband, nicht erst nach Scrollen durch Auftrag und
+  // Mitarbeiterliste.
+  $("btnChangeDate").style.display = darf ? "inline-block" : "none";
 
   $("adminBadge").textContent = darf ? `🔓 ${_rolle}` : "";
   $("adminTimerBar").textContent = "";
