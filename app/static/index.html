@@ -709,7 +709,9 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
   </div>
 </div>
 
-<script src="sync.js"></script>
+<!-- Versionsparameter verhindert, dass nach einem Update noch die alte
+     Offline-Synchronisation aus dem Browser-Cache ausgefuehrt wird. -->
+<script src="sync.js?v=20260922-2"></script>
 <script>
 "use strict";
 /* ── Konfiguration ───────────────────────────────────────────────────── */

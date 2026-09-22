@@ -599,7 +599,14 @@ def _auftragszeiten_nachfuehren(auftrag_id: str) -> None:
 # ── Statische Dateien ─────────────────────────────────────────────────────────
 @app.get("/")
 def index():
-    return FileResponse(os.path.join(STATIC, "index.html"))
+    # Die Erfassungsseite und ihre Sync-Logik duerfen nach einem Update nicht
+    # tagelang aus dem Browser-Cache weiterlaufen. "no-cache" erlaubt dem
+    # Browser weiterhin das Zwischenspeichern, erzwingt aber vor der Nutzung
+    # eine Pruefung beim Server.
+    return FileResponse(
+        os.path.join(STATIC, "index.html"),
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @app.get("/auswertung")
@@ -618,7 +625,11 @@ def auswertung_page(request: Request):
 
 @app.get("/sync.js")
 def sync_js():
-    return FileResponse(os.path.join(STATIC, "sync.js"), media_type="application/javascript")
+    return FileResponse(
+        os.path.join(STATIC, "sync.js"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @app.get("/logo_DOMINIK.png")
