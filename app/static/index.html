@@ -41,6 +41,10 @@ main{padding:16px;max-width:1100px;margin:0 auto;}
 /* Tag-Abgeschlossen-Banner */
 .day-closed-banner{background:var(--danger);color:#fff;border-radius:0;padding:10px 18px;font-size:.95rem;font-weight:700;display:none;text-align:center;}
 .day-closed-banner.show{display:block;}
+/* Hinweis: Bearbeitung fuer ein anderes Datum als heute (Meister/Admin) */
+.fremdes-datum-banner{background:var(--amber);color:#3a2c00;border-radius:0;padding:10px 18px;font-size:.95rem;font-weight:700;display:none;text-align:center;}
+.fremdes-datum-banner.show{display:block;}
+.fremdes-datum-banner button{margin-left:10px;}
 
 /* Stat-Kacheln */
 .stat-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
@@ -277,6 +281,11 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
 </header>
 
 <main>
+  <!-- Hinweis: Datum weicht von heute ab (Meister/Admin bearbeitet rueckwirkend) -->
+  <div class="fremdes-datum-banner" id="fremdesDatumBanner">
+    ✎ Bearbeitung fuer <b id="fremdesDatumText"></b> – nicht heute.
+    <button class="btn-tool btn-ghost" id="btnDatumHeute">Zurück zu heute</button>
+  </div>
   <!-- Tag-Abgeschlossen-Banner -->
   <div class="day-closed-banner" id="dayClosedBanner">
     🔒 Tag abgeschlossen – Erfassung gesperrt. Korrekturen nur noch mit Schreibrechten.
@@ -409,6 +418,7 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
     <button class="btn-tool btn-ghost"   id="btnEditAuftrag">✎ Auftrag bearbeiten</button>
     <button class="btn-tool btn-danger"  id="btnDeleteAuftrag">🗑 Auftrag löschen</button>
     <button class="btn-tool btn-ghost"   id="btnTagWiederOeffnen" style="display:none">🔓 Tag wieder öffnen</button>
+    <button class="btn-tool btn-ghost"   id="btnChangeDate" title="Fuer einen anderen Tag Auftraege ansehen oder rueckwirkend anlegen">✎ Datum wechseln</button>
   </div>
 
   <div style="font-size:.75rem;color:var(--ink-soft);margin-top:8px" id="lastReload"></div>
@@ -949,6 +959,12 @@ function _fetchTimeout(url, opts, timeoutMs){
 }
 function nowHM(){ const d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
 function pad(n){ return String(n).padStart(2, "0"); }
+// Einheitliche Quelle fuer "heute", u.a. um zu erkennen, ob state.datumISO
+// (per Datumswechsel) von heute abweicht.
+function heutigesDatumISO(){
+  const d = new Date();
+  return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
+}
 function esc(s){ const t=document.createElement("div"); t.textContent=(s==null||s===undefined)?"":String(s); return t.innerHTML; }
 function isoToday(){ const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); }
 function displayDate(iso){ const [y,m,d] = iso.split("-"); return `${d}.${m}.${y}`; }
@@ -1175,6 +1191,9 @@ function renderAll(){
   const svcPnr = $("fService").value.trim();
   const hasSvc = /^P\d{4,5}$/i.test(svcPnr);
   $("fDatum").value = state.datum;
+  const fremdesDatum = state.datumISO !== heutigesDatumISO();
+  $("fremdesDatumBanner").classList.toggle("show", fremdesDatum);
+  if(fremdesDatum) $("fremdesDatumText").textContent = state.datum;
   renderAuftragTabs();
 
   // Tag-Abgeschlossen-Banner
@@ -2811,7 +2830,13 @@ async function loadAndMerge(){
         }
       });
     }
-    const active = await TMSync.loadActiveAuftrag().catch(() => null);
+    // /api/auftrag/active liefert den global aktiven Auftrag (heutiges
+    // Datum, siehe get_active_auftrag) - fuer einen abweichend gewaehlten
+    // Tag (Datumswechsel, Meister/Admin) waere das immer der HEUTIGE
+    // Auftrag, nicht der des betrachteten Tages. Der Fallback-Zweig unten
+    // (letzter Auftrag aus state.auftraege) übernimmt fuer diesen Fall.
+    const heuteGewaehlt = state.datumISO === heutigesDatumISO();
+    const active = heuteGewaehlt ? await TMSync.loadActiveAuftrag().catch(() => null) : null;
     if(active && active.id){
       const existing = state.auftraege.find(x => x.id === active.id);
       if(existing){
@@ -2877,6 +2902,57 @@ async function loadAndMerge(){
   } catch(e){ /* offline - State beibehalten */ }
 }
 
+/* ── Datum wechseln (Meister/Admin) ────────────────────────────────────────
+ * Erlaubt, Auftraege eines anderen Tages anzusehen und - ueber den normalen
+ * Aufsicht-PNR-Fluss in handleServicePnr() - rueckwirkend neue anzulegen.
+ * /api/auftrag/active bleibt davon unberuehrt: es ist serverseitig auf heute
+ * beschraenkt (get_active_auftrag), damit ein rueckwirkend angelegter, noch
+ * offener Auftrag nie zum vermeintlich laufenden Auftrag des Hallentablets
+ * wird (das immer fuer heute erfasst). Siehe CLAUDE.md/Analyse zum Vorbild
+ * in produktiv._halle1_erfassung, rapido_tisch_erfassung, Blumenband. */
+async function changeDate(){
+  const darf = await ensureAdmin("Datum wechseln", "");
+  if(!darf) return;
+  const inp = prompt("Datum eingeben (JJJJ-MM-TT):", state.datumISO);
+  if(!inp) return;
+  const clean = inp.trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(clean)){
+    toast("Ungültiges Format – erwartet JJJJ-MM-TT", true);
+    return;
+  }
+  setDatum(clean);
+}
+
+function setDatum(iso){
+  state.datumISO = iso;
+  const [y, m, d] = iso.split("-");
+  state.datum = `${d}.${m}.${y}`;
+  // Tageswechsel: alte Auswahl verwerfen. state.auftraege wird in
+  // loadAndMerge() nur ergaenzt, nie geleert - ohne dies blieben Auftraege
+  // des vorherigen Tages in der Tab-Leiste stehen, vermischt mit denen des
+  // neu gewaehlten.
+  state.auftraege = [];
+  state.auftrag = null;
+  state.selectedAuftragId = null;
+  // dayIsClosed wird in loadAndMerge() bewusst nur auf true gesetzt, nie
+  // zurueck (Schutz gegen eine Race Condition beim Wiederoeffnen). Das gilt
+  // nur innerhalb eines Tages - ueber einen Datumswechsel hinweg muss der
+  // Wert neu ermittelt werden, sonst bliebe ein zuvor besuchter
+  // abgeschlossener Tag faelschlich fuer alle folgenden Tage gesperrt.
+  state.dayIsClosed = false;
+  // Aufsicht-PNR gehoert zum vorherigen Tag, nicht zum neu gewaehlten -
+  // sonst wandert sie beim naechsten Zurueckwechseln zu heute mit.
+  $("fService").value = "";
+  state.aufsichtPnr = "";
+  sessionStorage.removeItem("tm_aufsicht");
+  renderAll();
+  loadAndMerge();
+  toast(iso === heutigesDatumISO() ? "Zurück zu heute" : `Datum gewechselt auf ${state.datum}`);
+}
+
+$("btnChangeDate").onclick = changeDate;
+$("btnDatumHeute").onclick = () => setDatum(heutigesDatumISO());
+
 /* ── Init ───────────────────────────────────────────────────────────────────────── */
 async function init(){
   // Sitzung ermitteln, ohne den Seitenaufbau aufzuhalten. Ist der Auth-Dienst
@@ -2885,7 +2961,7 @@ async function init(){
   sitzungLaden();
 
   const now = new Date();
-  state.datumISO = now.getFullYear() + "-" + pad(now.getMonth()+1) + "-" + pad(now.getDate());
+  state.datumISO = heutigesDatumISO();
   state.datum    = pad(now.getDate()) + "." + pad(now.getMonth()+1) + "." + now.getFullYear();
 
   // Aufsicht-PNR aus sessionStorage wiederherstellen (bleibt im Tab, löscht sich beim Schließen)

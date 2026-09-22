@@ -652,7 +652,7 @@ def api_config():
 # ── Aktiver Auftrag ───────────────────────────────────────────────────────────
 @app.get("/api/auftrag/active")
 def get_active():
-    result = db.get_active_auftrag()
+    result = db.get_active_auftrag(date.today().isoformat())
     if not result:
         return {"id": None, "status": "none"}
     result["close_token"] = _auftrag_token(result["id"])
@@ -670,6 +670,12 @@ def create_new_auftrag(body: AuftragNewIn):
     if existing:
         return {"ok": True, "auftrag_id": existing["id"], "auftragsnr": existing["auftragsnr"]}
     validate_date(body.datum, "Datum")
+    if body.datum != date.today().isoformat():
+        # Rueckwirkendes Anlegen ist Meister/Admin vorbehalten. Der Scanbetrieb
+        # (Port 8084, ohne Anmeldung) legt Auftraege ausschliesslich fuer heute
+        # an - ohne diese Pruefung koennte auch dort jeder Auftraege fuer
+        # beliebige Tage erzeugen, unbemerkt von der Aufsicht am Hallentablet.
+        check_admin(body.pw)
     if _day_is_closed(body.datum):
         raise HTTPException(400, "Tag ist bereits abgeschlossen")
     auftragsnr = db.create_auftrag_atomic({

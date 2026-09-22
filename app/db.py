@@ -158,11 +158,20 @@ def init_db():
         c.commit()
 
 
-def get_active_auftrag() -> Optional[dict]:
-    """Gibt den aktuell offenen Auftrag zurueck (der zuletzt gestartete)."""
+def get_active_auftrag(heute: str) -> Optional[dict]:
+    """Gibt den aktuell offenen Auftrag des heutigen Tages zurueck (der
+    zuletzt gestartete).
+
+    Auf datum=heute beschraenkt, seit Meister/Admin rueckwirkend Auftraege
+    fuer vergangene Tage anlegen koennen (Datumswechsel in der Erfassung).
+    Ohne diesen Filter wuerde ein rueckwirkend angelegter, noch offener
+    Auftrag hier zurueckgegeben und damit geraeteuebergreifend zum
+    vermeintlich aktuellen Auftrag - auch fuer das Hallentablet, das immer
+    fuer heute erfasst und seinen Stand ueber genau diese Funktion holt."""
     with get_conn() as c:
         row = c.execute(
-            "SELECT * FROM auftraege WHERE status='offen' ORDER BY created_ms DESC LIMIT 1"
+            "SELECT * FROM auftraege WHERE status='offen' AND datum=? ORDER BY created_ms DESC LIMIT 1",
+            (heute,)
         ).fetchone()
         if not row:
             return None
