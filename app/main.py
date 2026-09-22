@@ -675,7 +675,10 @@ def create_new_auftrag(body: AuftragNewIn):
         # (Port 8084, ohne Anmeldung) legt Auftraege ausschliesslich fuer heute
         # an - ohne diese Pruefung koennte auch dort jeder Auftraege fuer
         # beliebige Tage erzeugen, unbemerkt von der Aufsicht am Hallentablet.
-        check_admin(body.pw)
+        # AuftragNewIn hat kein pw-Feld (der Parameter wird ohnehin nirgends
+        # mehr ausgewertet, siehe check_admin) - ohne Default-Aufruf hier
+        # bricht das mit AttributeError/500 statt der beabsichtigten 403.
+        check_admin()
     if _day_is_closed(body.datum):
         raise HTTPException(400, "Tag ist bereits abgeschlossen")
     auftragsnr = db.create_auftrag_atomic({
