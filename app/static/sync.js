@@ -112,11 +112,24 @@
   /* ── Fetch mit Timeout ──
      Verhindert, dass ein haengender Request (instabiles WLAN) den
      Sync-Loop blockiert: ohne Timeout bleibt "syncing" dauerhaft true. */
+  /* ── CSRF-Kopf der zentralen Anmeldung ──
+     Ueber diese Warteschlange laufen auch geschuetzte Schreibvorgaenge, etwa
+     das rueckwirkende Anlegen eines Auftrags. Ohne diesen Kopf verwirft die
+     Auth-Middleware die Cookie-Identitaet und antwortet trotz angemeldetem
+     Meister/Admin mit 403. Ohne Anmeldung bleibt der Wert leer und der offene
+     Scanbetrieb fuer den heutigen Tag funktioniert unveraendert weiter. */
+  function _csrfToken() {
+    const m = document.cookie.match(/(?:^|;\s*)__Host-erf_csrf=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : "";
+  }
+
   function _fetchTimeout(url, opts, timeoutMs) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs || 12000);
-    return fetch(url, Object.assign({}, opts, { signal: ctrl.signal }))
-      .finally(() => clearTimeout(t));
+    const o = Object.assign({}, opts, { signal: ctrl.signal });
+    const tok = _csrfToken();
+    if (tok) o.headers = Object.assign({}, o.headers, { "X-CSRF-Token": tok });
+    return fetch(url, o).finally(() => clearTimeout(t));
   }
 
   /* ── API-Hilfsfunktion ──
