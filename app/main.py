@@ -927,6 +927,8 @@ def neue_kultur(body: NeueKulturIn):
     auftrag = db.get_auftrag_by_id(body.auftrag_id)
     if not auftrag:
         raise HTTPException(404, "Auftrag nicht gefunden")
+    if _day_is_closed(auftrag.get("datum", "")):
+        raise HTTPException(400, "Tag ist bereits abgeschlossen")
     if auftrag["status"] == "abgeschlossen":
         raise HTTPException(400, "Auftrag ist bereits abgeschlossen")
     expected = _auftrag_token(body.auftrag_id)

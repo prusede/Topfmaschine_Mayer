@@ -1160,6 +1160,7 @@ function updateNeuerAuftragBtn(){
   const a      = state.auftrag;
   const has    = !!a;
   const closed = a && a.status === "abgeschlossen";
+  const tagGesperrt = state.dayIsClosed;
   const naBtn  = $("btnNeuerAuftrag");
   const naHint = $("btnNeuerAuftragHint");
   const paBtn  = $("btnAuftragAbschliessen");
@@ -1173,11 +1174,14 @@ function updateNeuerAuftragBtn(){
                     (gsObj !== null && gsObj !== undefined && !isNaN(Number(gsObj)) && Number(gsObj) >= 0);
   const hasKultur = a && (a.kultur !== null && a.kultur !== undefined);
   const hasTopf   = a && !!a.topfgroesse;
-  // Wenn Auftrag bereits abgeschlossen (nach Pause): Auftrag Neu trotzdem aktiv → geht direkt zu Step 2
-  const bereit    = has && (closed || (gsGültig && hasKultur && hasTopf));
+  // Bei offenem Tag darf nach einer Auftragspause direkt mit Schritt 2 weitergemacht werden.
+  const bereit    = !tagGesperrt && has && (closed || (gsGültig && hasKultur && hasTopf));
   naBtn.disabled  = !bereit;
   if(naHint){
-    if(!has || closed){
+    if(tagGesperrt){
+      naHint.textContent = "Tag bereits abgeschlossen";
+      naHint.classList.add("show");
+    } else if(!has || closed){
       naHint.classList.remove("show");
     } else if(!bereit){
       const miss = [];
@@ -1725,6 +1729,10 @@ async function handleServicePnr(pnrStr){
   const a = state.auftrag;
   const now = nowHM();
   if(!a){
+    if(state.dayIsClosed){
+      toast("Tag ist bereits abgeschlossen", true);
+      return;
+    }
     // Neuen Auftrag anlegen + Aufsicht eintragen
     const auftragId = TMSync.newOpId();
     const mzId      = TMSync.newOpId();
@@ -2321,6 +2329,11 @@ $("nkStep1Ok").onclick = () => {
 /* ── Schritt 2: Neue Kultur anlegen ────────────────────────────────────── */
 $("nkOk").onclick = () => {
   const a = state.auftrag; if(!a) return;
+  if(state.dayIsClosed){
+    toast("Tag ist bereits abgeschlossen", true);
+    $("nkStep2Modal").classList.remove("show");
+    return;
+  }
   const newId    = TMSync.newOpId();
   const newStart = _nkEnde || nowHM();
 
@@ -2419,6 +2432,7 @@ $("nkOk").onclick = () => {
 /* ── Neuer-Auftrag-Button ─────────────────────────────────────────────── */
 $("btnNeuerAuftrag").onclick = () => {
   const a = state.auftrag; if(!a) return;
+  if(state.dayIsClosed){ toast("Tag ist bereits abgeschlossen", true); return; }
   // Wenn Auftrag bereits abgeschlossen (nach Pause): Step 1 überspringen, direkt zu Step 2
   if(a.status === "abgeschlossen"){
     openNkStep2Modal(a);
