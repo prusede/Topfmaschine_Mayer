@@ -1424,6 +1424,14 @@ function renderTopfChips(a){
   });
 }
 
+// Nur die Schaltflaechen umordnen: Nummern und Klickzuordnungen bleiben erhalten.
+function sortiereKulturChips(container){
+  const name = b => b.textContent.replace(/^\s*\d+\s*/, "");
+  [...container.children]
+    .sort((a,b)=>name(a).localeCompare(name(b), "de"))
+    .forEach(b=>container.appendChild(b));
+}
+
 function renderKulturChips(a){
   const freiIdx = KULTUREN.length + 1;
   const c = $("kulturChips"); if(!c) return;
@@ -1466,6 +1474,7 @@ function renderKulturChips(a){
     renderTopfChips(a);
   };
   c.appendChild(bf);
+  sortiereKulturChips(c);
   $("kulturFrei").classList.toggle("show", a.kultur === freiIdx);
   $("kulturFrei").disabled = gesperrt;
   $("kulturFrei").value = a.kultur_frei || "";
@@ -2223,6 +2232,7 @@ function buildModalChips(containerId, items, current, cls, onSelect, addFreitext
     };
     c.appendChild(bf);
   }
+  if(cls === "kul") sortiereKulturChips(c);
 }
 /* ── Schritt-1-Validierung: Gesamtstück muss gesetzt sein ───────────────── */
 function updateNkStep1Ok(){
