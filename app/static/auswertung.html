@@ -152,6 +152,7 @@ td.zelle-edit{width:1%;white-space:nowrap;padding-left:4px;padding-right:8px;}
   <span class="spacer"></span>
   <span class="user-badge" id="userBadge" style="color:#fff;font-size:.82rem;font-weight:600;margin-right:12px;opacity:.92"></span>
   <button class="back" id="btnAbmelden" style="display:none;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:6px 12px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:inherit;margin-right:14px">Abmelden</button>
+  <a class="back" href="https://10.10.0.210:8450/">Erfassung – Übersicht</a>
   <a class="back" href="https://10.10.0.210:8446/auswertung" style="margin-right:14px">⇄ Stolze-Auswertung</a>
   <a class="back" href="/">← zur Erfassung</a>
 </header>
@@ -435,8 +436,17 @@ async function init(){
     const cfg = await _fetchTimeout("/api/config").then(r=>r.json());
     _kulturen = cfg.kulturen || [];
     const sel = $("fKultur");
-    _kulturen.forEach((name,i) => { const o=document.createElement("option"); o.value=i+1; o.textContent=name; sel.appendChild(o); });
-    const oF=document.createElement("option"); oF.value="23"; oF.textContent="Freitext"; sel.appendChild(oF);
+    // Nur die Anzeige sortieren: die Kultur-ID ist der urspruengliche Index
+    // und muss fuer Filter, Export und gespeicherte Auftraege erhalten bleiben.
+    const optionen = _kulturen.map((name,i)=>({name, id:i+1}));
+    // Freitext folgt auf die konfigurierten Kulturen; die Sortierung darf
+    // auch dessen ID nicht verschieben.
+    optionen.push({name:"Sonstige (Freitext)", id:cfg.kultur_freitext || (_kulturen.length + 1)});
+    optionen.sort((a,b)=>a.name.localeCompare(b.name, "de"));
+    optionen.forEach(({name,id})=>{
+      const o=document.createElement("option");
+      o.value=String(id); o.textContent=name; sel.appendChild(o);
+    });
   } catch(e){}
 
   // Datum-Defaults
@@ -462,19 +472,35 @@ $("fRange").addEventListener("change", () => {
 
 $("btnLoad").onclick = loadData;
 
+$("fKultur").addEventListener("change", renderAuswahl);
+
+function renderAuswahl(){
+  const rows = _filterKultur(_letzteSummaries);
+  renderKPIs(rows);
+  renderAuftraege(rows);
+  renderTage(rows);
+  // Gleiche Auswahl wie in Tabelle und Kennzahlen; der Kulturvergleich
+  // beruecksichtigt wie bisher nur abgeschlossene Auftraege.
+  const kulturen = new Map();
+  rows.filter(r=>r.status === "abgeschlossen").forEach(r=>{
+    const name = r.kultur || "Unbekannt";
+    const a = kulturen.get(name) || {kultur:name, stueck:0, mh:0};
+    a.stueck += r.gesamtstueck || 0;
+    a.mh += r.total_mh || 0;
+    kulturen.set(name, a);
+  });
+  renderKulturAgg([...kulturen.values()].map(a=>Object.assign({}, a, {
+    stueck_pro_mah: a.mh > 0 ? a.stueck/a.mh : null,
+  })));
+}
+
 async function loadData(){
   const von=$("fVon").value, bis=$("fBis").value;
   if(!von||!bis){ return; }
   try {
-    const [summaries, byKultur] = await Promise.all([
-      _fetchTimeout("/api/auswertung/summary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis})}).then(r=>r.json()),
-      _fetchTimeout("/api/auswertung/kulturen",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis})}).then(r=>r.json()),
-    ]);
+    const summaries = await _fetchTimeout("/api/auswertung/summary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis})}).then(r=>r.json());
     _letzteSummaries = Array.isArray(summaries) ? summaries : [];
-    renderKPIs(summaries);
-    renderAuftraege(summaries);
-    renderKulturAgg(byKultur);
-    renderTage(summaries);
+    renderAuswahl();
   } catch(e){ console.error(e); }
 }
 
@@ -498,13 +524,17 @@ function renderKPIs(rows){
 
 function kulturName(value){ return value || "—"; }
 
+function _filterKultur(rows){
+  const kf = $("fKultur").value;
+  if(!kf) return rows;
+  return rows.filter(r => String(r.kultur_id||"") === String(kf));
+}
+
 function renderAuftraege(rows){
   const tbody=$("auftraegeBody"); tbody.innerHTML="";
   if(!rows.length){ tbody.innerHTML=`<tr><td colspan="13" class="no-data">Keine Aufträge im Zeitraum</td></tr>`; return; }
   // Filter nach Kultur
-  const kf=$("fKultur").value;
-  const kText=kf ? $("fKultur").selectedOptions[0].textContent : "";
-  const filtered=kf?rows.filter(r=>String(r.kultur||"")===kText):rows;
+  const filtered=_filterKultur(rows);
   if(!filtered.length){ tbody.innerHTML=`<tr><td colspan="13" class="no-data">Keine Treffer für gewählte Kultur</td></tr>`; return; }
   filtered.forEach(r => {
     const tr=document.createElement("tr");
@@ -717,7 +747,7 @@ $("korrOk").onclick = async () => {
 
   btn.disabled = false;
   korrekturSchliessen();
-  await loadData();   // Kennzahlen, Stundenansicht und Tabelle neu rechnen
+  await loadData();   // Kennzahlen und Uebersichten mit aktueller Auswahl neu rechnen
 };
 
 function renderKulturAgg(byKultur){
@@ -763,12 +793,13 @@ function renderTage(rows){
 /* CSV-Export */
 $("btnExport").onclick = async () => {
   const von=$("fVon").value, bis=$("fBis").value;
+  const kultur_id = $("fKultur").value ? Number($("fKultur").value) : null;
   try {
-    const r=await _fetchTimeout("/api/export.csv",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis})},30000);
+    const r=await _fetchTimeout("/api/export.csv",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis,kultur_id})},30000);
     if(!r.ok){alert("Export fehlgeschlagen");return;}
     const blob=await r.blob();
     const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob); a.download=`Topfmaschine_Mayer_${von}_${bis}.csv`;
+    a.href=URL.createObjectURL(blob); a.download=`Topfmaschine_Mayer_${von}_${bis}${kultur_id ? "_Kultur_"+kultur_id : ""}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
   } catch(e){ alert("Fehler beim Export"); }
 };

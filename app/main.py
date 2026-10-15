@@ -438,6 +438,7 @@ class AuswertungRequest(BaseModel):
     pw: str = ""
     von: str
     bis: str
+    kultur_id: Optional[int] = Field(default=None, ge=1, le=len(KULTUREN) + 1)
 
 
 class AuditRequest(BaseModel):
@@ -1171,6 +1172,8 @@ def _build_auftrag_summary(rows: list) -> list:
                 "auftragsnr":   r["auftragsnr"],
                 "datum":        r["datum"],
                 "kultur":       _kultur_name(r["kultur"], r.get("kultur_frei", "")),
+                # Die ID bleibt auch bei Freitext und sortierter Anzeige stabil.
+                "kultur_id":    r["kultur"],
                 "topfgroesse":  r["topfgroesse"] or "",
                 "arbeit":       r["arbeit"] or "",
                 "auftrag_start": r["auftrag_start"] or "",
@@ -1238,6 +1241,7 @@ def _build_auftrag_summary(rows: list) -> list:
             "auftragsnr":   a["auftragsnr"],
             "datum":        a["datum"],
             "kultur":       a["kultur"],
+            "kultur_id":    a["kultur_id"],
             "topfgroesse":  a["topfgroesse"],
             "arbeit":       a["arbeit"],
             "auftrag_start": a["auftrag_start"],
@@ -1292,7 +1296,10 @@ def export_csv(req: AuswertungRequest):
     check_viewer(req.pw)
     rows      = db.get_auftraege_flat(req.von, req.bis)
     summaries = _build_auftrag_summary(rows)
-    db.log_audit("csv_export", _actor(req.pw), None, f"von={req.von},bis={req.bis}")
+    if req.kultur_id is not None:
+        summaries = [a for a in summaries if a["kultur_id"] == req.kultur_id]
+    db.log_audit("csv_export", _actor(req.pw), None,
+                 f"von={req.von},bis={req.bis},kultur_id={req.kultur_id}")
 
     DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
     buf = io.StringIO()
