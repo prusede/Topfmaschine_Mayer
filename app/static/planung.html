@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Produktionsplanung · Topfmaschine Mayer</title>
+<link rel="stylesheet" href="/planung.css?v=20261016-pflicht-1">
+<script defer src="https://10.10.0.210:8451/static/erf-session.js"></script>
+<script defer src="/kulturen.js?v=20261016-topfform-1"></script>
+<script defer src="/planung.js?v=20261016-pflicht-1"></script>
+</head>
+<body class="planung plan-seite">
+<header class="plan-kopf"><strong>DOMINIK · Mayer</strong><span>Produktionsplanung</span><nav><a href="/">Erfassung</a><a href="/auswertung">Auswertung</a></nav></header>
+<main class="plan-main">
+  <div class="plan-intro"><div><h1>Produktion planen</h1><div class="plan-hinweis">Produktion wird ab dem Produktionsbeginn automatisch nach Kultur und Topfgröße angerechnet. Eine gewählte Topfform muss übereinstimmen. Verbindliche Mengen stammen aus abgeschlossenen Aufträgen.</div></div><span id="planBenutzer" class="plan-hinweis"></span></div>
+  <div id="planMeldung" class="plan-meldung" role="status"></div>
+  <section id="planEditor" class="plan-karte" hidden>
+    <h2 id="planFormTitel">Neue Produktionsvorgabe</h2>
+    <form id="planForm" class="plan-form">
+      <div><label for="pKultur">Kultur</label><input id="pKultur" list="planKulturen" autocomplete="off" required maxlength="100" placeholder="Kultur suchen oder Freitext wählen"><datalist id="planKulturen"></datalist></div>
+      <div id="pFreiGruppe" hidden><label for="pFrei">Freitext-Kultur</label><input id="pFrei" maxlength="100"></div>
+      <div><label for="pTopf">Topfgröße</label><select id="pTopf" required><option value="">Bitte wählen</option></select></div>
+      <div><label id="pFormLabel">Topfform *</label><div class="plan-form-kacheln" role="group" aria-labelledby="pFormLabel"><button type="button" class="sekundaer" data-topfform="rund" aria-pressed="false">rund</button><button type="button" class="sekundaer" data-topfform="eckig" aria-pressed="false">eckig</button></div><div id="pFormBestand" class="plan-hinweis" hidden>Bestehende Vorgabe ohne Topfform – bisherige Anrechnung bleibt erhalten.</div></div>
+      <div><label for="pBeginn">Produktionsbeginn</label><input id="pBeginn" type="date" required></div>
+      <div><label for="pEnde">Produktionsende</label><input id="pEnde" type="date" required></div>
+      <div><label for="pSoll">Sollmenge (Stück)</label><input id="pSoll" type="number" min="1" max="1000000000" step="1" required inputmode="numeric"></div>
+      <div id="pFest" class="plan-hinweis plan-breit" hidden>Kultur, Topfgröße und Topfform sind nach der ersten Anrechnung fest. Änderungen an Produktionsbeginn, Produktionsende oder Sollmenge berechnen die automatischen Anteile neu.</div>
+      <div class="plan-breit"><label><input type="checkbox" id="pArchiv"> Vorgabe archivieren – bisherige Anrechnung bleibt sichtbar; neue Produktion wird nicht mehr angerechnet</label></div>
+      <div class="plan-aktionen plan-breit"><button type="submit" id="planSpeichern" disabled>Vorgabe speichern</button><a class="plan-knopf sekundaer" href="/auswertung">Abbrechen und zur Auswertung</a></div>
+    </form>
+  </section>
+  <section class="plan-karte">
+    <h2>Soll und Ist</h2>
+    <div class="plan-zeitraum"><div><label for="planVon">Produktion im Zeitraum von</label><input id="planVon" type="date" required></div><div><label for="planBis">Bis</label><input id="planBis" type="date" required></div><button id="planLaden" type="button">Aktualisieren</button><label><input type="checkbox" id="planArchivZeigen"> Archivierte anzeigen</label></div>
+    <p class="plan-hinweis">„Ist gesamt“ umfasst alle abgeschlossenen Aufträge der Vorgabe, unabhängig vom Zeitraum. Laufende Mengen werden separat als vorläufig angezeigt. Auch noch nicht begonnene Vorgaben erscheinen. Bei mehreren passenden Vorgaben wird zuerst das früheste Produktionsende bedient, danach die nächste Vorgabe. Jede Menge zählt einmal; Überhänge erscheinen bei der letzten passenden Vorgabe als Mehrproduktion.</p>
+    <div id="planBericht" aria-live="polite"></div>
+  </section>
+</main>
+</body></html>

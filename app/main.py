@@ -1,5 +1,4 @@
-"""
-Topfmaschine Mayer – FastAPI Backend.
+"""Topfmaschine Mayer – FastAPI Backend.
 Liefert die Web-App aus und stellt die gesamte API bereit.
 
 Eigenstaendige Instanz analog zu Topfmaschine_Stolze, aber OHNE Modbus/LOGO!-
@@ -27,23 +26,26 @@ import hmac
 import secrets
 import uuid
 from datetime import datetime, date
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import (
     HTMLResponse,
+    JSONResponse,
     StreamingResponse,
     FileResponse,
     RedirectResponse,
 )
 from pydantic import BaseModel, Field
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Literal
 
 import erfassung_auth as auth
 
-from app import db
+from app import db, plan_db
+from app.kulturen import KULTUREN, KULTUR_FREITEXT, TOPFGROESSEN
 
 # ── Startup-Sicherheitspruefung ──────────────────────────────────────────────
-# An dieser Stelle stand bis zur Umstellung die Pruefung auf TM_ADMIN_PW. Es gibt
+# An dieser Stelle stand bis Schritt 5 die Pruefung auf TM_ADMIN_PW. Es gibt
 # keine geteilten Passwoerter mehr. Was jetzt zaehlt, ist das Verzeichnis mit
 # den oeffentlichen Schluesseln: fehlt es, kann die Anwendung keine Sitzung mehr
 # pruefen und waere fuer Auswertung und Admin-Funktionen still tot. Ein klarer
@@ -63,16 +65,15 @@ if not (os.path.isdir(_KEY_DIR) and any(
     sys.exit(1)
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
-KULTUREN = [
-    "Clematis", "Hortensie", "Aronia", "Maulbeere", "Tibouchina",
-    "Lantana", "Buddleja", "Datura", "Passiflora rot", "Passiflora blau",
-    "Bougainvillea", "Abutilon", "Lonicera", "Solanum ram.", "Polygnum",
-    "Camelia", "Oleander", "Dicentra", "Pampasgras", "Paeonia",
-    "Fuchsie", "Stauden 9er rund",
-]  # Indizes 1-22; 23 = Freitext
+ARBEITEN = []  # Arbeitskategorien entfernt
 
-ARBEITEN    = []  # Arbeitskategorien entfernt
-TOPFGROESSEN = ["9er", "11er"]
+# Feste Pausenfenster der Anlage. Sie lagen bisher nur im Frontend
+# (calcAutoPause in index.html) und damit ausserhalb jeder serverseitigen
+# Rechnung. Fuer die stuendliche Auswertung werden sie hier gebraucht;
+# ausgeliefert werden sie ueber /api/config, damit es genau eine Quelle gibt
+# und Erfassung und Auswertung nicht auseinanderlaufen koennen.
+PAUSEN_FENSTER = [("09:00", "09:15"), ("12:00", "12:15"), ("15:00", "15:15")]
+
 PNR_MIN     = 1001
 PNR_MAX     = 99999
 # Sammelzeile: mehrere Personen ohne einzelne Personalnummer in einer Zeile.
@@ -82,8 +83,10 @@ SAMMEL_MAX  = 20
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="Topfmaschine Mayer – Erfassung")
 
-# Zentrale Anmeldung. Die Middleware liest die Cookies und stellt eine Identitaet
-# bereit; ausgestellt werden die Tokens allein vom Auth-Dienst.
+# Zentrale Anmeldung. Die Middleware liest die beiden Cookies und stellt eine
+# Identitaet bereit; ausgestellt werden die Tokens allein vom Auth-Dienst. Fehlt
+# das Schluesselverzeichnis oder das Cookie, wird schlicht keine Identitaet
+# erkannt und die Anwendung verhaelt sich exakt wie vor der Umstellung.
 AUTH_CFG = auth.AuthConfig(
     app_key="topfmaschine_mayer",
     allowed_origins=[os.environ.get("TM_ORIGIN", "https://10.10.0.210:8447")],
@@ -102,8 +105,8 @@ STATIC = os.path.join(BASE, "static")
 # ── Torwaechter ───────────────────────────────────────────────────────────────
 #
 # Rechte kommen ausschliesslich aus der Benutzerverwaltung. Der Parameter pw
-# bleibt in den Signaturen stehen, damit die Aufrufstellen unveraendert bleiben;
-# ausgewertet wird er nirgends mehr. Das Feld pw in den Modellen bleibt
+# bleibt in den Signaturen stehen, damit die rund 30 Aufrufstellen unveraendert
+# bleiben; ausgewertet wird er nirgends mehr. Das Feld pw in den Modellen bleibt
 # ebenfalls, damit ein noch nicht neu geladener Tablet-Browser keinen 422
 # bekommt.
 #
@@ -116,14 +119,34 @@ STATIC = os.path.join(BASE, "static")
 def check_admin(pw: str = ""):
     """Aendernd: Rolle meister oder admin. Kein zweites Passwort.
 
-    Das Step-up aus Vorgabe 3 des Konzepts ist wie bei Stolze abgeschaltet
-    (Entscheidung 30.07.2026). Es haette bedeutet, dass die Aufsicht sich
-    anmeldet und danach fuer jede Korrektur ein zweites Mal ihr Passwort
-    eingibt -- eine Abfrage mehr als vor der Umstellung.
+    Das Step-up aus Vorgabe 3 des Konzepts ist fuer diese Anwendung bewusst
+    abgeschaltet (Entscheidung 30.07.2026). Es haette bedeutet, dass die
+    Aufsicht sich anmeldet und danach fuer jede Korrektur ein zweites Mal ihr
+    Passwort eingibt -- eine Abfrage mehr als vor der Umstellung und damit
+    genau das, was Vorgabe 0 ausschliesst.
 
     Was den Schutz traegt, ist die kurze Sitzung: in der Erfassung laeuft sie
-    nach spaetestens 60 Minuten ab und erneuert sich dort nicht von selbst."""
+    nach spaetestens 60 Minuten ab und erneuert sich dort nicht von selbst.
+    Ein Tablet, das jemand offen stehen laesst, ist damit nicht den ganzen Tag
+    schreibfaehig."""
     auth.require("meister")
+
+
+def _is_today(datum: str) -> bool:
+    return datum == date.today().isoformat()
+
+
+def _require_write_for_date(datum: str, pw: str = ""):
+    """Aenderungen ausserhalb des heutigen Produktionstags nur ab Meister.
+
+    Die Endpunkte des laufenden Scanbetriebs bleiben fuer heute bewusst offen.
+    Sobald ein Auftrag zu einem anderen Datum gehoert, gilt dagegen dieselbe
+    zentrale Rollenpruefung wie bei einer administrativen Korrektur."""
+    heute = date.today().isoformat()
+    if datum > heute:
+        raise HTTPException(400, "Zukünftige Tage können nicht als Nachtrag bearbeitet werden")
+    if datum != heute:
+        check_admin(pw)
 
 
 def check_viewer(pw: str = ""):
@@ -139,14 +162,22 @@ def _admin_ok(pw: str = "") -> bool:
 
 
 def _nur_admin():
-    """Dem Admin vorbehalten: das Audit-Protokoll. Es ist das Mittel, mit dem
-    Korrekturen kontrolliert werden, und gehoert nicht in dieselbe Hand wie die
-    Korrektur selbst. Nachtraeglich bearbeiten darf auch der Meister."""
+    """Dem Admin vorbehalten: das Audit-Protokoll.
+
+    Nachtraeglich bearbeiten stand hier bis zum 30.07.2026 ebenfalls -- die
+    Aufsicht braucht es im Alltag, deshalb hat der Meister es jetzt auch. Das
+    Protokoll bleibt beim Admin: es ist das Mittel, mit dem Korrekturen
+    kontrolliert werden, und gehoert damit nicht in die Hand derselben Person,
+    die sie vornimmt."""
     auth.require("admin")
 
 
 def _ueber_https(request: Request) -> bool:
-    """Caddy setzt X-Forwarded-Proto; der direkte Zugang auf 8084 nicht."""
+    """Caddy setzt X-Forwarded-Proto; der direkte Zugang auf 8084 nicht.
+
+    request.url.scheme taugt hier nicht als alleiniges Merkmal: ob dort https
+    steht, haengt daran, dass uvicorn die Weiterleitungskoepfe auswertet. Der
+    Kopf selbst ist eindeutig."""
     return request.headers.get("x-forwarded-proto", "").lower() == "https"
 
 
@@ -177,7 +208,9 @@ def _actor(pw: str = "") -> str:
 
     Der Rueckfall 'system' greift nur noch bei den offenen Endpunkten, die
     bewusst ohne Anmeldung laufen (Scannen, Auftrag anlegen und schliessen,
-    Kulturwechsel, Zeiten eintragen, Tagesabschluss)."""
+    Kulturwechsel, Zeiten eintragen, Tagesabschluss). Dort bleibt
+    unprotokolliert, wer gehandelt hat -- in Kauf genommen, damit der
+    Maschinenbetrieb durch keine Anmeldung unterbrochen wird."""
     return auth.actor("system")
 
 
@@ -208,8 +241,8 @@ def validate_topfgroesse(tg: Optional[str]) -> Optional[str]:
         return None
     if tg == "":
         return ""
-    if tg not in TOPFGROESSEN:
-        raise HTTPException(400, f"Topfgroesse muss '9er' oder '11er' sein")
+    if tg not in TOPFGROESSEN and tg not in ("9er", "11er"):
+        raise HTTPException(400, f"Ungueltige Topfgroesse. Erlaubt: {', '.join(TOPFGROESSEN)}")
     return tg
 
 
@@ -217,8 +250,9 @@ def validate_kultur(k: Optional[Any]) -> Optional[int]:
     if k is None:
         return None
     ki = int(k)
-    if not (1 <= ki <= 23):
-        raise HTTPException(400, f"Ungueltige Kultur: {ki} (erlaubt: 1-23)")
+    if ki not in KULTUREN and ki != KULTUR_FREITEXT:
+        raise HTTPException(
+            400, f"Ungueltige Kultur: {ki}")
     return ki
 
 
@@ -300,11 +334,9 @@ def _netto_h(start, ende, pause) -> float:
 
 
 def _kultur_name(k, frei="") -> str:
-    if k == 23:
+    if k == KULTUR_FREITEXT:
         return frei or "Sonstiges"
-    if k and 1 <= k <= len(KULTUREN):
-        return KULTUREN[k - 1]
-    return ""
+    return KULTUREN.get(k, "")
 
 
 def _nowHM() -> str:
@@ -319,23 +351,31 @@ class PwAction(BaseModel):
 
 
 class AuftragNewIn(BaseModel):
+    planung_id: Optional[str] = Field(default=None, max_length=80)
     id: str
     datum: str
     auftrag_start: str = ""
     arbeit: str = Field(default="", max_length=200)
     kultur: Optional[int] = None
     kultur_frei: str = Field(default="", max_length=100)
+    topfform: Literal["", "rund", "eckig"] = ""
+    substrat_auftr_nr: str = Field(default="", max_length=100)
+    substrat_art_nr: str = Field(default="", max_length=100)
     topfgroesse: str = ""
     sonst: str = Field(default="", max_length=500)
     changed_by: str = ""
 
 
 class AuftragUpdateIn(BaseModel):
+    planung_id: Optional[str] = Field(default=None, max_length=80)
     auftrag_id: str
     pw: str = ""
     arbeit: Optional[str] = Field(default=None, max_length=200)
     kultur: Optional[int] = None
     kultur_frei: Optional[str] = Field(default=None, max_length=100)
+    topfform: Optional[Literal["", "rund", "eckig"]] = None
+    substrat_auftr_nr: Optional[str] = Field(default=None, max_length=100)
+    substrat_art_nr: Optional[str] = Field(default=None, max_length=100)
     topfgroesse: Optional[str] = None
     auftrag_start: Optional[str] = None
     sonst: Optional[str] = Field(default=None, max_length=500)
@@ -387,6 +427,7 @@ class AuftragCloseIn(BaseModel):
 
 
 class NeueKulturIn(BaseModel):
+    planung_id: Optional[str] = Field(default=None, max_length=80)
     auftrag_id: str
     auftrag_ende: str
     gesamtstueck: int
@@ -396,6 +437,9 @@ class NeueKulturIn(BaseModel):
     arbeit: str = Field(default="", max_length=200)
     kultur: Optional[int] = None
     kultur_frei: str = Field(default="", max_length=100)
+    topfform: Literal["", "rund", "eckig"] = ""
+    substrat_auftr_nr: str = Field(default="", max_length=100)
+    substrat_art_nr: str = Field(default="", max_length=100)
     topfgroesse: str = ""
     transfer_mz_ids: Optional[List[str]] = None
     pw: str = ""
@@ -403,12 +447,16 @@ class NeueKulturIn(BaseModel):
 
 
 class AuftragEditIn(BaseModel):
+    planung_id: Optional[str] = Field(default=None, max_length=80)
     # Bleibt fuer Bestandsclients erhalten, wird aber nicht mehr ausgewertet.
     pw: str = ""
     auftrag_id: str
     arbeit: Optional[str] = Field(default=None, max_length=200)
     kultur: Optional[int] = None
     kultur_frei: Optional[str] = Field(default=None, max_length=100)
+    topfform: Optional[Literal["", "rund", "eckig"]] = None
+    substrat_auftr_nr: Optional[str] = Field(default=None, max_length=100)
+    substrat_art_nr: Optional[str] = Field(default=None, max_length=100)
     topfgroesse: Optional[str] = None
     auftrag_start: Optional[str] = None
     auftrag_ende: Optional[str] = None
@@ -438,7 +486,7 @@ class AuswertungRequest(BaseModel):
     pw: str = ""
     von: str
     bis: str
-    kultur_id: Optional[int] = Field(default=None, ge=1, le=len(KULTUREN) + 1)
+    kultur_id: Optional[int] = Field(default=None, ge=1, le=max(KULTUREN))
 
 
 class AuditRequest(BaseModel):
@@ -453,6 +501,10 @@ class DayCloseIn(BaseModel):
     token: str = ""
 
 
+                  # autoritativer Wert (das ist gesamtstueck), daher kein
+                  # Admin-Zwang; Feld bleibt fuer spaetere Zwecke bestehen.
+
+
 def _abschluss_missing(auftrag: dict, auftrag_ende: Optional[str] = None,
                        gesamtstueck: Optional[int] = None) -> list:
     missing = []
@@ -460,7 +512,7 @@ def _abschluss_missing(auftrag: dict, auftrag_ende: Optional[str] = None,
         missing.append("Auftragsstart")
     if auftrag.get("kultur") is None:
         missing.append("Kultur")
-    elif int(auftrag.get("kultur")) == 23 and not (auftrag.get("kultur_frei") or "").strip():
+    elif int(auftrag.get("kultur")) == KULTUR_FREITEXT and not (auftrag.get("kultur_frei") or "").strip():
         missing.append("Freitext-Kultur")
     if not auftrag.get("topfgroesse"):
         missing.append("Topfgroesse")
@@ -550,14 +602,8 @@ def _ist_nachzuegler(auftrag: Optional[dict], updated_ms: Optional[int]) -> bool
 def _auftragszeiten_nachfuehren(auftrag_id: str) -> None:
     """Auftragsstart und -ende ergeben sich aus den Mitarbeiterzeiten.
 
-    Die Erfassung kennt kein eigenes Feld fuer die Auftragszeit -- die Aufsicht
-    traegt allein die Zeiten der Personen ein, der Auftragsstart wurde beim
-    Anlegen aus der Uhr genommen. Wird ein Auftrag erst mittags angelegt,
-    obwohl seit dem Morgen gearbeitet wird, stehen in Auftragstabelle und CSV
-    Zeiten, die mit den Personalzeiten nichts zu tun haben. Uebernommen aus
-    Stolze, wo derselbe Auseinanderlauf die stuendliche Auswertung verdorben
-    hat; hier geht die Auftragszeit in keine Rechnung ein, gelesen wird sie
-    trotzdem.
+    Auftragszeiten folgen der Anwesenheit der erfassten Personen.
+    So bleiben Auftragskopf und Mitarbeiterzeiten konsistent.
 
     Das Ende bleibt leer, solange auch nur eine Person angemeldet ist: erst
     wenn alle abgemeldet sind, steht fest, wann zuletzt gearbeitet wurde. Bei
@@ -566,8 +612,8 @@ def _auftragszeiten_nachfuehren(auftrag_id: str) -> None:
     stillschweigend aufheben.
 
     Der Vergleich laeuft ueber die Zeichenketten "HH:MM", was fuer die
-    Betriebszeiten genuegt. Ein Auftrag ueber Mitternacht kaeme hier falsch
-    heraus, existiert aber nicht.
+    Betriebszeiten der Anlage (5:45 bis hoechstens 18 Uhr) genuegt. Ein Auftrag
+    ueber Mitternacht kaeme hier falsch heraus, existiert aber nicht.
     """
     auftrag = db.get_auftrag_by_id(auftrag_id)
     if not auftrag:
@@ -600,10 +646,6 @@ def _auftragszeiten_nachfuehren(auftrag_id: str) -> None:
 # ── Statische Dateien ─────────────────────────────────────────────────────────
 @app.get("/")
 def index():
-    # Die Erfassungsseite und ihre Sync-Logik duerfen nach einem Update nicht
-    # tagelang aus dem Browser-Cache weiterlaufen. "no-cache" erlaubt dem
-    # Browser weiterhin das Zwischenspeichern, erzwingt aber vor der Nutzung
-    # eine Pruefung beim Server.
     return FileResponse(
         os.path.join(STATIC, "index.html"),
         headers={"Cache-Control": "no-cache"},
@@ -622,6 +664,21 @@ def auswertung_page(request: Request):
     if redirect:
         return redirect
     return FileResponse(os.path.join(STATIC, "auswertung.html"))
+
+
+@app.get("/kulturauswahl.js")
+def kulturauswahl_js():
+    return FileResponse(os.path.join(STATIC, "kulturauswahl.js"),
+                        media_type="application/javascript", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/kulturen.js")
+def kulturen_js():
+    return FileResponse(
+        os.path.join(STATIC, "kulturen.js"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @app.get("/sync.js")
@@ -646,22 +703,27 @@ def logo_white():
 # ── Health + Config ────────────────────────────────────────────────────────────
 @app.get("/health")
 def health():
-    return {"ok": True, "ts": int(time.time() * 1000), "app": "Topfmaschine Mayer",
+    return {"ok": True, "ts": int(time.time() * 1000), "app": "Topfmaschine",
             "pnr_min": PNR_MIN, "pnr_max": PNR_MAX}
 
 
 @app.get("/api/config")
 def api_config():
     return {
-        "kulturen":     KULTUREN,
-        "arbeiten":     ARBEITEN,
-        "topfgroessen": TOPFGROESSEN,
-        "pnr_min":      PNR_MIN,
-        "pnr_max":      PNR_MAX,
+        # Alte, noch geoeffnete Clients kennen nur die ersten 22 IDs.
+        "kulturen":        [KULTUREN[i] for i in range(1, KULTUR_FREITEXT)],
+        "kultur_optionen": [{"id": i, "name": name} for i, name in KULTUREN.items()],
+        "kultur_freitext": KULTUR_FREITEXT,
+        "arbeiten":        ARBEITEN,
+        "topfgroessen":    TOPFGROESSEN,
+        "pnr_min":         PNR_MIN,
+        "pnr_max":         PNR_MAX,
+        # Pausenfenster als [["09:00","09:15"], ...]. Das Frontend rechnet
+        # seine automatische Pause daraus, statt eine eigene Kopie zu fuehren.
+        "pausen_fenster":  [list(f) for f in PAUSEN_FENSTER],
     }
 
 
-# ── Aktiver Auftrag ───────────────────────────────────────────────────────────
 @app.get("/api/auftrag/active")
 def get_active():
     result = db.get_active_auftrag(date.today().isoformat())
@@ -682,15 +744,7 @@ def create_new_auftrag(body: AuftragNewIn):
     if existing:
         return {"ok": True, "auftrag_id": existing["id"], "auftragsnr": existing["auftragsnr"]}
     validate_date(body.datum, "Datum")
-    if body.datum != date.today().isoformat():
-        # Rueckwirkendes Anlegen ist Meister/Admin vorbehalten. Der Scanbetrieb
-        # (Port 8084, ohne Anmeldung) legt Auftraege ausschliesslich fuer heute
-        # an - ohne diese Pruefung koennte auch dort jeder Auftraege fuer
-        # beliebige Tage erzeugen, unbemerkt von der Aufsicht am Hallentablet.
-        # AuftragNewIn hat kein pw-Feld (der Parameter wird ohnehin nirgends
-        # mehr ausgewertet, siehe check_admin) - ohne Default-Aufruf hier
-        # bricht das mit AttributeError/500 statt der beabsichtigten 403.
-        check_admin()
+    _require_write_for_date(body.datum)
     if _day_is_closed(body.datum):
         raise HTTPException(400, "Tag ist bereits abgeschlossen")
     auftragsnr = db.create_auftrag_atomic({
@@ -700,12 +754,16 @@ def create_new_auftrag(body: AuftragNewIn):
         "kultur":       validate_kultur(body.kultur),
         "kultur_frei":  body.kultur_frei,
         "topfgroesse":  validate_topfgroesse(body.topfgroesse),
+        "topfform": body.topfform,
+        "substrat_auftr_nr": body.substrat_auftr_nr,
+        "substrat_art_nr": body.substrat_art_nr,
         "auftrag_start": validate_time(body.auftrag_start, "Auftragsstart") or _nowHM(),
         "sonst":        body.sonst,
-        "changed_by":   _actor(),
+        "changed_by":   body.changed_by or "user",
+        "planung_id":   body.planung_id or None,
     })
     db.log_audit("auftrag_new", _actor(), body.id,
-                 f"auftragsnr={auftragsnr},datum={body.datum}")
+                 f"auftragsnr={auftragsnr},datum={body.datum},planung={body.planung_id or ''}")
     return {"ok": True, "auftrag_id": body.id, "auftragsnr": auftragsnr}
 
 
@@ -715,13 +773,18 @@ def update_auftrag(body: AuftragUpdateIn):
     auftrag = db.get_auftrag_by_id(body.auftrag_id)
     if not auftrag:
         raise HTTPException(404, "Auftrag nicht gefunden")
-    if auftrag["status"] == "abgeschlossen":
+    if auftrag["status"] == "abgeschlossen" or not _is_today(auftrag.get("datum", "")) or _day_is_closed(auftrag.get("datum", "")):
         check_admin(body.pw)
 
     fields: dict = {}
+    for key in ("topfform", "substrat_auftr_nr", "substrat_art_nr"):
+        if getattr(body, key) is not None:
+            fields[key] = getattr(body, key)
+    if "planung_id" in body.model_fields_set:
+        fields["planung_id"] = body.planung_id or None
     if body.arbeit is not None:
         fields["arbeit"] = body.arbeit
-    if body.kultur is not None:
+    if "kultur" in body.model_fields_set:
         fields["kultur"] = validate_kultur(body.kultur)
     if body.kultur_frei is not None:
         fields["kultur_frei"] = body.kultur_frei
@@ -735,8 +798,7 @@ def update_auftrag(body: AuftragUpdateIn):
         if body.gesamtstueck < 0:
             raise HTTPException(400, "Gesamtstueckzahl muss >= 0 sein")
         fields["gesamtstueck"] = body.gesamtstueck
-    fields["changed_by"] = _actor()
-    db.update_auftrag(body.auftrag_id, fields)
+    plan_db.update_config(body.auftrag_id, fields, _actor(body.pw))
     return {"ok": True}
 
 
@@ -760,6 +822,7 @@ def scan_worker(body: ScanIn):
     auftrag = db.get_auftrag_by_id(body.auftrag_id)
     if not auftrag:
         raise HTTPException(404, "Auftrag nicht gefunden")
+    _require_write_for_date(auftrag.get("datum", ""))
     if _day_is_closed(auftrag.get("datum", "")):
         raise HTTPException(400, "Tag ist bereits abgeschlossen")
 
@@ -798,6 +861,8 @@ def update_worker(body: WorkerUpdateIn):
     if mz is None:
         raise HTTPException(404, "Mitarbeiter-Eintrag nicht gefunden")
     auftrag = db.get_auftrag_by_id(mz["auftrag_id"])
+    if auftrag:
+        _require_write_for_date(auftrag.get("datum", ""), body.pw)
     locked = bool(auftrag) and (
         auftrag.get("status") == "abgeschlossen" or _day_is_closed(auftrag.get("datum", ""))
     )
@@ -832,7 +897,7 @@ def update_worker(body: WorkerUpdateIn):
                   fields)
         c.commit()
     _auftragszeiten_nachfuehren(mz["auftrag_id"])
-    db.log_audit("worker_update", _actor(), body.mz_id,
+    db.log_audit("worker_update", _actor(body.pw), body.mz_id,
                  f"auftrag={mz['auftrag_id']},locked={locked},"
                  f"nachzuegler={nachzuegler},fields={list(fields.keys())}")
     return {"ok": True}
@@ -878,6 +943,7 @@ def close_auftrag(body: AuftragCloseIn):
         # (z.B. Retry nach Netzwerk-Timeout). Als Erfolg quittieren statt
         # eines Fehlers, der die Offline-Outbox dauerhaft blockieren wuerde.
         return {"ok": True, "already_closed": True}
+    _require_write_for_date(auftrag.get("datum", ""), body.pw)
     expected = _auftrag_token(body.auftrag_id)
     if not body.token or not hmac.compare_digest(body.token, expected):
         raise HTTPException(403, "Ungültiger Vorgang – Seite neu laden und erneut versuchen")
@@ -888,12 +954,12 @@ def close_auftrag(body: AuftragCloseIn):
 
     db.set_all_active_workers_ende(body.auftrag_id, body.auftrag_ende)
     db.close_auftrag(body.auftrag_id, body.auftrag_ende, body.gesamtstueck,
-                     _actor())
+                     _actor(body.pw))
     # Nach dem Setzen der Endzeiten stimmen Auftragszeit und Personalzeiten
     # ueberein; hier faellt insbesondere ein Auftragsstart auf, der beim
     # Anlegen aus der Uhr kam statt vom ersten Mitarbeiter.
     _auftragszeiten_nachfuehren(body.auftrag_id)
-    db.log_audit("auftrag_close", _actor(),
+    db.log_audit("auftrag_close", _actor(body.pw),
                  body.auftrag_id,
                  f"ende={body.auftrag_ende},stueck={body.gesamtstueck}")
     return {"ok": True}
@@ -932,6 +998,9 @@ def neue_kultur(body: NeueKulturIn):
         raise HTTPException(400, "Tag ist bereits abgeschlossen")
     if auftrag["status"] == "abgeschlossen":
         raise HTTPException(400, "Auftrag ist bereits abgeschlossen")
+    if body.datum != auftrag.get("datum"):
+        raise HTTPException(400, "Kulturwechsel muss am Datum des Ausgangsauftrags bleiben")
+    _require_write_for_date(auftrag.get("datum", ""), body.pw)
     expected = _auftrag_token(body.auftrag_id)
     if not body.token or not hmac.compare_digest(body.token, expected):
         raise HTTPException(403, "Ungültiger Vorgang – Seite neu laden und erneut versuchen")
@@ -964,8 +1033,12 @@ def neue_kultur(body: NeueKulturIn):
             "kultur":       validate_kultur(body.kultur),
             "kultur_frei":  body.kultur_frei,
             "topfgroesse":  validate_topfgroesse(body.topfgroesse),
+            "topfform": body.topfform,
+            "substrat_auftr_nr": body.substrat_auftr_nr,
+            "substrat_art_nr": body.substrat_art_nr,
             "auftrag_start": new_start,
-            "changed_by":   _actor(),
+            "changed_by":   "system",
+            "planung_id":   body.planung_id or None,
         },
         transfer_workers,
     )
@@ -977,7 +1050,7 @@ def neue_kultur(body: NeueKulturIn):
     db.log_audit("neue_kultur", _actor(),
                  body.new_auftrag_id,
                  f"von={body.auftrag_id},stueck={body.gesamtstueck},"
-                 f"uebernommen={len(transferred)},nr={auftragsnr}")
+                 f"uebernommen={len(transferred)},nr={auftragsnr},planung={body.planung_id or ''}")
 
     return {
         "ok":             True,
@@ -1010,6 +1083,8 @@ def get_auftrag(auftrag_id: str):
 
 @app.post("/api/day/close")
 def day_close(body: DayCloseIn):
+    validate_date(body.datum, "Datum")
+    _require_write_for_date(body.datum, body.pw)
     if _day_is_closed(body.datum):
         # Idempotenz: Tag ist bereits abgeschlossen (z.B. Retry nach
         # Netzwerk-Timeout) - als Erfolg quittieren statt eines Fehlers.
@@ -1020,7 +1095,7 @@ def day_close(body: DayCloseIn):
     problems = _day_close_problems(body.datum)
     if problems:
         raise HTTPException(400, {"message": "Tagesabschluss nicht moeglich", "problems": problems})
-    actor = _actor()
+    actor = _actor(body.pw)
     db.close_day(body.datum, actor)
     db.log_audit("day_close", actor, body.datum, "alle Auftraege vollstaendig")
     return {"ok": True, "datum": body.datum}
@@ -1061,8 +1136,13 @@ def admin_edit_auftrag(body: AuftragEditIn):
         raise HTTPException(404, "Auftrag nicht gefunden")
 
     fields: dict = {}
+    for key in ("topfform", "substrat_auftr_nr", "substrat_art_nr"):
+        if getattr(body, key) is not None:
+            fields[key] = getattr(body, key)
+    if "planung_id" in body.model_fields_set:
+        fields["planung_id"] = body.planung_id or None
     if body.arbeit       is not None: fields["arbeit"]       = body.arbeit
-    if body.kultur       is not None: fields["kultur"]       = validate_kultur(body.kultur)
+    if "kultur" in body.model_fields_set: fields["kultur"] = validate_kultur(body.kultur)
     if body.kultur_frei  is not None: fields["kultur_frei"]  = body.kultur_frei
     if body.topfgroesse  is not None: fields["topfgroesse"]  = body.topfgroesse
     if body.auftrag_start is not None: fields["auftrag_start"] = body.auftrag_start
@@ -1070,8 +1150,7 @@ def admin_edit_auftrag(body: AuftragEditIn):
     if body.gesamtstueck  is not None: fields["gesamtstueck"]  = body.gesamtstueck
     if body.status        is not None: fields["status"]         = body.status
     if body.sonst         is not None: fields["sonst"]          = body.sonst
-    fields["changed_by"] = _actor(body.pw)
-    db.update_auftrag(body.auftrag_id, fields)
+    plan_db.update_config(body.auftrag_id, fields, _actor(body.pw))
     # Die Auftragszeit folgt auch hier den Personalzeiten. Eine von Hand
     # gesetzte Zeit haette sonst nur bis zur naechsten Zeitkorrektur Bestand -
     # zwei Wahrheiten, die frueher oder spaeter auseinanderlaufen.
@@ -1172,10 +1251,22 @@ def _build_auftrag_summary(rows: list) -> list:
                 "auftragsnr":   r["auftragsnr"],
                 "datum":        r["datum"],
                 "kultur":       _kultur_name(r["kultur"], r.get("kultur_frei", "")),
-                # Die ID bleibt auch bei Freitext und sortierter Anzeige stabil.
+                # Rohindex zusaetzlich zum Namen: der Kultur-Filter der
+                # Auswertung verglich bisher den Anzeigetext der Auswahlliste
+                # mit dem Kulturnamen der Zeile. Bei Freitext steht dort aber
+                # der eingegebene Name und nie das Wort "Freitext", der Filter
+                # lief also immer ins Leere. Ueber den Index trifft er.
                 "kultur_id":    r["kultur"],
+                "planung_id":   r.get("planung_id"),
                 "topfgroesse":  r["topfgroesse"] or "",
+                "topfform": r.get("topfform", ""),
+                "substrat_auftr_nr": r.get("substrat_auftr_nr", ""),
+                "substrat_art_nr": r.get("substrat_art_nr", ""),
                 "arbeit":       r["arbeit"] or "",
+                # Notiz aus der Erfassung (Spalte sonst). Sie wurde bisher
+                # gelesen und wieder verworfen - damit stand sie nirgends, wo
+                # jemand sie gelesen haette.
+                "notiz":        r.get("sonst") or "",
                 "auftrag_start": r["auftrag_start"] or "",
                 "auftrag_ende": r["auftrag_ende"] or "",
                 "gesamtstueck": r["gesamtstueck"],
@@ -1242,7 +1333,12 @@ def _build_auftrag_summary(rows: list) -> list:
             "datum":        a["datum"],
             "kultur":       a["kultur"],
             "kultur_id":    a["kultur_id"],
+            "planung_id":   a.get("planung_id"),
+            "notiz":        a["notiz"],
             "topfgroesse":  a["topfgroesse"],
+            "topfform": a["topfform"],
+            "substrat_auftr_nr": a["substrat_auftr_nr"],
+            "substrat_art_nr": a["substrat_art_nr"],
             "arbeit":       a["arbeit"],
             "auftrag_start": a["auftrag_start"],
             "auftrag_ende": a["auftrag_ende"],
@@ -1296,6 +1392,14 @@ def export_csv(req: AuswertungRequest):
     check_viewer(req.pw)
     rows      = db.get_auftraege_flat(req.von, req.bis)
     summaries = _build_auftrag_summary(rows)
+    anrechnungen = {}
+    for plan in plan_db.fortschritt(req.von, req.bis):
+        for a in plan["auftraege"]:
+            if req.von <= a["datum"] <= req.bis:
+                menge = str(a["angerechnet"]) if a["angerechnet"] is not None else "Menge offen"
+                if a["status"] != "abgeschlossen":
+                    menge += " vorlaeufig"
+                anrechnungen.setdefault(a["id"], []).append(f"{plan['id']}: {menge}")
     if req.kultur_id is not None:
         summaries = [a for a in summaries if a["kultur_id"] == req.kultur_id]
     db.log_audit("csv_export", _actor(req.pw), None,
@@ -1313,7 +1417,7 @@ def export_csv(req: AuswertungRequest):
         "Tag", "Datum", "Auftragsnr", "Kultur", "Topfgroesse", "Arbeit",
         "Pers.nr.", "Anzahl", "Rolle", "Start", "Ende", "Pause_h",
         "Netto_h", "Netto_h_gesamt",
-        "Gesamtstueck", "Stueck_pro_MA-Std", "Status",
+        "Gesamtstueck", "Stueck_pro_MA-Std", "Status", "Notiz", "Produktionsvorgabe", "Plananrechnung_Stueck", "Topfform", "Substrate Auftr.Nr.", "Art.Nr.",
     ])
     for a in summaries:
         try:
@@ -1337,10 +1441,119 @@ def export_csv(req: AuswertungRequest):
                 a["gesamtstueck"] if a["gesamtstueck"] is not None else "",
                 str(a["stueck_pro_mah"] or "").replace(".", ","),
                 a["status"],
+                # Notiz steht in jeder Zeile des Auftrags. Redundant, aber beim
+                # Sortieren und Filtern in Excel ist das der brauchbarere Weg -
+                # eine nur in der ersten Zeile gefuellte Spalte verliert beim
+                # Umsortieren ihren Bezug.
+                (a["notiz"] or "").replace("\r\n", " ").replace("\n", " "),
+                a.get("planung_id") or "",
+                " | ".join(anrechnungen.get(a["id"], [])),
+                a["topfform"], a["substrat_auftr_nr"], a["substrat_art_nr"],
             ])
     buf.seek(0)
-    fn = f"Topfmaschine_Mayer_{req.von}_{req.bis}.csv"
+    fn = f"Topfmaschine_{req.von}_{req.bis}.csv"
     return StreamingResponse(
         iter([buf.getvalue()]), media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{fn}"'},
     )
+
+
+# Produktionsplanung bleibt von den tatsaechlich erfassten Auftraegen getrennt.
+class PlanSaveIn(BaseModel):
+    id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
+    kultur: int
+    kultur_frei: str = Field(default="", max_length=100)
+    topfform: Literal["", "rund", "eckig"] = ""
+    topfgroesse: str
+    arbeit: str = Field(default="Topfen", min_length=1, max_length=200)
+    sollmenge: int = Field(gt=0, le=1000000000)
+    termin: str
+    beginn: Optional[str] = None
+    terminart: Literal["tag", "bis"] = "bis"
+    prioritaet: int = Field(default=0, ge=0, le=2)
+    bemerkung: str = Field(default="", max_length=500)
+    archiviert: bool = False
+    version: Optional[int] = None
+
+
+@app.exception_handler(plan_db.PlanConflict)
+async def plan_konflikt(request: Request, exc: plan_db.PlanConflict):
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
+@app.get("/planung")
+def planung_page(request: Request):
+    if not _ueber_https(request):
+        return RedirectResponse("https://10.10.0.210:8447/planung", status_code=307)
+    redirect = auth.guard_page(request, AUTH_CFG)
+    if redirect:
+        return redirect
+    return FileResponse(os.path.join(STATIC, "planung.html"), headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/planung.js")
+def planung_js():
+    return FileResponse(os.path.join(STATIC, "planung.js"), media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/planung.css")
+def planung_css():
+    return FileResponse(os.path.join(STATIC, "planung.css"), media_type="text/css",
+                        headers={"Cache-Control": "no-cache"})
+
+
+def _plan_namen(rows):
+    for p in rows:
+        p["kultur_name"] = _kultur_name(p["kultur"], p["kultur_frei"])
+    return rows
+
+
+@app.get("/api/planung/auswahl")
+def planung_auswahl():
+    # Die Aufsicht braucht diese Sachinformationen auch im HTTP-Scanbetrieb.
+    # Keine Personalzeiten oder Bearbeiternamen an anonyme Clients ausliefern.
+    rows = _plan_namen(plan_db.auswahl())
+    keys = ("id", "kultur", "kultur_frei", "kultur_name", "topfgroesse", "arbeit",
+            "sollmenge", "termin", "terminart", "prioritaet", "bemerkung", "topfform", "ist", "fehlt")
+    return [{k: p[k] for k in keys} for p in rows if not p["archiviert"]]
+
+
+@app.post("/api/auswertung/planung")
+def planung_auswertung(req: AuswertungRequest):
+    check_viewer(req.pw)
+    validate_date(req.von, "Von")
+    validate_date(req.bis, "Bis")
+    if req.von > req.bis:
+        raise HTTPException(400, "Von darf nicht nach Bis liegen")
+    rows = _plan_namen(plan_db.fortschritt(req.von, req.bis))
+    return [p for p in rows if req.kultur_id is None or p["kultur"] == req.kultur_id]
+
+
+@app.post("/api/planung/save")
+def planung_speichern(body: PlanSaveIn):
+    check_admin()
+    validate_date(body.termin, "Produktionsende")
+    old = plan_db.get_plan(body.id)
+    arbeit = old["arbeit"] if old and "arbeit" not in body.model_fields_set else body.arbeit.strip()
+    kultur = validate_kultur(body.kultur)
+    topf = validate_topfgroesse(body.topfgroesse)
+    if not topf or not arbeit:
+        raise HTTPException(400, "Topfgröße und Tätigkeit sind erforderlich")
+    if kultur == KULTUR_FREITEXT and not body.kultur_frei.strip():
+        raise HTTPException(400, "Freitext-Kultur ist erforderlich")
+    beginn = body.beginn if body.beginn is not None else (
+        old["beginn"] if old else datetime.now(ZoneInfo("Europe/Berlin")).date().isoformat())
+    validate_date(beginn, "Produktionsbeginn")
+    if beginn > body.termin:
+        raise HTTPException(400, "Produktionsbeginn darf nicht nach dem Produktionsende liegen")
+    data = body.model_dump(exclude={"version"})
+    # Nicht mehr sichtbare Felder alter Vorgaben beim Bearbeiten erhalten.
+    for key in ("terminart", "prioritaet", "bemerkung", "topfform"):
+        if old and key not in body.model_fields_set:
+            data[key] = old[key]
+    data.update(kultur=kultur, beginn=beginn, topfgroesse=topf, arbeit=arbeit,
+                kultur_frei=body.kultur_frei.strip() if kultur == KULTUR_FREITEXT else "",
+                bemerkung=data["bemerkung"].strip(), archiviert=int(body.archiviert))
+    saved = plan_db.save_plan(data, body.version, _actor())
+    return {"ok": True, "id": saved["id"], "version": saved["updated_ms"]}

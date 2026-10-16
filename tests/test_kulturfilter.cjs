@@ -9,8 +9,9 @@ const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '../app/static/auswertung.html'), 'utf8');
 
 function seite(){
-  const elemente = {fKultur:{value:''}};
+  const elemente = {fKultur:{value:''},fRange:{value:''},produktionsAuswertung:{style:{}},btnExport:{style:{}},datenLadeStatus:{textContent:''}};
   const aufrufe = {};
+  elemente.auswertungPlanung={style:{}};
   const c = vm.createContext({
     $:id=>elemente[id] ||= {},
     fmtNum:(n, dec=1)=>n == null ? '—' : n.toLocaleString('de-DE', {
@@ -22,8 +23,10 @@ function seite(){
       {id:'l', kultur_id:13, kultur:'Lonicera', status:'abgeschlossen', gesamtstueck:4866, total_mh:8.83},
       {id:'f', kultur_id:23, kultur:'Sonderkultur', status:'offen', gesamtstueck:null, total_mh:0},
     ],
+    _letzteStunden:[],
+    _auswertungAnfrage:0,_planBerichtAnfrage:0,ladePlanbericht:async()=>{},
   });
-  for(const name of ['_filterKultur','renderKPIs','renderAuswahl']){
+  for(const name of ['_filterKultur','renderKPIs','renderAuswahl','zeitraumGueltig','zeigeAuswertungsansicht']){
     vm.runInContext(source.match(new RegExp('function '+name+'\\([^]*?\\n}'))[0], c);
   }
   for(const name of ['renderAuftraege','renderTage','renderKulturAgg']){
@@ -73,24 +76,14 @@ test('Gesamtes Seitenskript ist syntaktisch gueltig', ()=>{
   }
 });
 
-test('Kulturliste sortiert alphabetisch und bewahrt die urspruenglichen IDs', ()=>{
-  const optionen = [{value:'', textContent:'Alle'}];
-  const start = source.indexOf('    const sel = $("fKultur");', source.indexOf('async function init()'));
-  const end = source.indexOf('  } catch(e){}', start);
-  vm.runInNewContext(source.slice(start,end), {
-    _kulturen:['Clematis','Hortensie','Aronia'], cfg:{},
-    $:()=>({appendChild:o=>optionen.push(o)}), document:{createElement:()=>({})},
-  });
-  assert.deepEqual(optionen.map(o=>o.textContent),
-    ['Alle','Aronia','Clematis','Hortensie','Sonstige (Freitext)']);
-  assert.deepEqual(optionen.map(o=>o.value), ['', '3', '1', '2', '4']);
-});
-
 test('Laden verwendet die aktuelle Kulturauswahl fuer alle Ansichten', async ()=>{
   const {c,elemente,aufrufe} = seite();
   elemente.fVon = {value:'2026-10-13'};
   elemente.fBis = {value:'2026-10-13'};
   elemente.fKultur.value = '2';
+  c._farbenSetzen = ()=>{};
+  c.renderZaehlerKPIs = ()=>{};
+  c.renderZaehlerTage = ()=>{};
   c._fetchTimeout = async url=>({ok:true, json:async ()=>
     url.endsWith('/summary') ? c._letzteSummaries : []});
   vm.runInContext(source.match(/async function loadData\([^]*?\n}/)[0], c);

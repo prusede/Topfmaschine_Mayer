@@ -6,9 +6,6 @@
 <title>Topfmaschine Mayer – DOMINIK</title>
 <style>
 :root {
-  /* Bewusst andere Grundfarbe als Topfmaschine_Stolze (dort gruen) - hier
-     Petrol/Blau, damit auf dem gemeinsam genutzten Tablet auf den ersten
-     Blick erkennbar ist, welche Maschine gerade erfasst wird. */
   --leaf:#1f6f8a; --leaf-dark:#123c4d; --leaf-light:#e2eef1;
   --paper:#f7f5ef; --paper-line:#e3ded2; --ink:#21251f; --ink-soft:#5c6157;
   --amber:#c9821f; --amber-soft:#f5e7cf; --amber-dark:#7a4d0c;
@@ -41,7 +38,7 @@ main{padding:16px;max-width:1100px;margin:0 auto;}
 /* Tag-Abgeschlossen-Banner */
 .day-closed-banner{background:var(--danger);color:#fff;border-radius:0;padding:10px 18px;font-size:.95rem;font-weight:700;display:none;text-align:center;}
 .day-closed-banner.show{display:block;}
-/* Hinweis: Bearbeitung fuer ein anderes Datum als heute (Meister/Admin) */
+/* Unuebersehbarer Hinweis: Meister/Admin arbeitet nicht am Produktionstag. */
 .fremdes-datum-banner{background:var(--amber);color:#3a2c00;border-radius:0;padding:10px 18px;font-size:.95rem;font-weight:700;display:none;text-align:center;}
 .fremdes-datum-banner.show{display:block;}
 .fremdes-datum-banner button{margin-left:10px;}
@@ -97,10 +94,28 @@ main{padding:16px;max-width:1100px;margin:0 auto;}
 .chip.on{background:var(--leaf-light);border-color:var(--leaf);color:var(--leaf-dark);font-weight:600;}
 .chip.topf.on{background:var(--amber-soft);border-color:var(--amber);color:var(--amber-dark);}
 .chip.arb.on{background:#e0ecff;border-color:#3b7fd4;color:#1a4a8a;}
-.chip .kul-num{font-size:.7rem;font-weight:700;background:var(--paper-line);color:var(--ink-soft);border-radius:4px;padding:1px 5px;margin-right:4px;display:inline-block;transition:background .12s,color .12s;}
-.chip.on .kul-num{background:var(--leaf-dark);color:#fff;}
 .freitext-kul{border:1px solid var(--paper-line);border-radius:7px;padding:7px 10px;font-size:.9rem;background:var(--paper);display:none;margin-top:6px;width:100%;max-width:280px;}
 .freitext-kul.show{display:block;}
+
+/* Notizfeld im Auftrag. Bewusst gross genug fuer die Bedienung mit dem
+   Finger auf dem Hallentablet. */
+.notiz-grp{margin-top:10px;padding-top:10px;border-top:1px solid var(--paper-line);}
+.notiz-head{display:flex;align-items:center;gap:10px;margin-bottom:5px;}
+.notiz-head .lab{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-soft);}
+.notiz-status{font-size:.75rem;font-weight:600;color:var(--ink-soft);flex:1;}
+.notiz-status.ok{color:var(--leaf);}
+.notiz-zaehler{font-size:.72rem;color:var(--ink-soft);font-variant-numeric:tabular-nums;}
+.notiz-zaehler.voll{color:var(--danger);font-weight:700;}
+#notizFeld{width:100%;max-width:640px;border:1.5px solid var(--paper-line);border-radius:8px;padding:9px 11px;
+  font-size:.95rem;font-family:inherit;line-height:1.35;background:var(--paper);color:var(--ink);resize:vertical;min-height:52px;}
+#notizFeld:focus{outline:none;border-color:var(--leaf);background:#fff;}
+#notizFeld:disabled{background:var(--paper-line);color:var(--ink-soft);cursor:not-allowed;}
+.substrat-felder{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;}
+.substrat-felder>div{flex:1;min-width:180px;max-width:320px;}
+.substrat-felder label{display:block;font-size:.85rem;font-weight:700;margin-bottom:6px;}
+.substrat-felder input{width:100%;box-sizing:border-box;border:1.5px solid var(--paper-line);border-radius:8px;padding:10px 12px;background:var(--paper);color:var(--ink);font:inherit;}
+.substrat-felder input:focus{outline:2px solid var(--leaf);outline-offset:2px;background:#fff;}
+.substrat-felder input:disabled{background:var(--paper-line);color:var(--ink-soft);}
 
 /* Kultur-Header */
 .kul-header{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-soft);margin-bottom:8px;}
@@ -133,9 +148,6 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
 .gesamt-ma-detail{font-size:.78rem;color:var(--ink-soft);margin-top:1px;}
 .gesamt-highlight.gesamt-tile-fixed{width:200px;height:92px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;}
 .gesamt-highlight.gesamt-tile-fixed .gesamt-lab{white-space:nowrap;}
-.machine-switch-link{color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:6px 12px;font-size:.82rem;font-weight:600;text-decoration:none;white-space:nowrap;}
-.machine-switch-link:hover{background:rgba(255,255,255,.24);}
-
 /* Scan-Bar */
 .scanbar{background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px;}
 .scanbar .lead{font-size:.82rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--ink);margin-bottom:8px;}
@@ -210,6 +222,8 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
 .btn-tool{flex:1;min-width:130px;border:none;border-radius:9px;padding:12px 16px;font-size:.9rem;font-weight:700;cursor:pointer;}
 .btn-primary{background:var(--leaf);color:#fff;}
 .btn-ghost{background:#fff;border:1.5px solid var(--paper-line)!important;color:var(--ink-soft);}
+.machine-switch-link{color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:6px 12px;font-size:.82rem;font-weight:600;text-decoration:none;white-space:nowrap;}
+.machine-switch-link:hover{background:rgba(255,255,255,.24);}
 .btn-danger{background:var(--danger-soft);color:var(--danger);border:1.5px solid var(--danger)!important;}
 
 /* Toast */
@@ -263,6 +277,13 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
   .cfg-row{gap:10px;}
   .gesamt-val{font-size:1.8rem;}
 }
+.chip[hidden],.chips[hidden]{display:none;}
+#kulturChips,#nkKulturChips{max-height:300px;overflow-y:auto;padding:3px;}
+.kultur-suche-label{display:block;font-size:.85rem;font-weight:700;margin-bottom:5px;}
+.kultur-suche{width:100%;max-width:420px;box-sizing:border-box;padding:11px 13px;border:1.5px solid var(--paper-line);border-radius:9px;font:inherit;background:var(--paper);color:var(--ink);}
+.kultur-suche:focus{outline:2px solid var(--leaf);outline-offset:2px;}
+.kultur-alle{padding:9px 12px;margin:8px 0;border:1px solid var(--leaf);border-radius:8px;background:var(--leaf-light);color:var(--leaf-dark);font:inherit;cursor:pointer;}
+.kultur-treffer{font-size:.8rem;color:var(--ink-soft);margin:7px 0 10px;}
 </style>
 </head>
 <body>
@@ -278,11 +299,10 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
   <a class="machine-switch-link" href="https://10.10.0.210:8446/" title="Zur Stolze-Erfassung wechseln">⇄ Stolze</a>
   <input class="session-field" id="fService" placeholder="Aufsicht-PNR P1001–P99999" type="text" inputmode="text" maxlength="6" autocomplete="off" />
   <input class="session-field" id="fDatum" style="min-width:110px" readonly />
-  <button id="btnChangeDate" title="Fuer einen anderen Tag Auftraege ansehen oder rueckwirkend anlegen" style="display:none;background:var(--amber);color:#7a4d0c;border:none;border-radius:6px;padding:4px 10px;font-size:.8rem;cursor:pointer;font-weight:600;">✎ Datum</button>
+  <button id="btnChangeDate" title="Fuer einen anderen Tag Auftraege ansehen oder nachtraeglich anlegen" style="display:none;background:var(--amber);color:#7a4d0c;border:none;border-radius:6px;padding:4px 10px;font-size:.8rem;cursor:pointer;font-weight:600;">✎ Datum</button>
 </header>
 
 <main>
-  <!-- Hinweis: Datum weicht von heute ab (Meister/Admin bearbeitet rueckwirkend) -->
   <div class="fremdes-datum-banner" id="fremdesDatumBanner">
     ✎ Bearbeitung fuer <b id="fremdesDatumText"></b> – nicht heute.
     <button class="btn-tool btn-ghost" id="btnDatumHeute">Zurück zu heute</button>
@@ -336,15 +356,15 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
     <div class="hint">Aufsicht-PNR eingeben (Feld oben rechts), um einen neuen Auftrag zu starten.</div>
   </div>
 
-  <!-- Aktiver Auftrag -->
+  <!-- Aktiver Auftrag mit manueller Mengenerfassung. -->
   <div id="auftragPanel" class="auftrag-panel" style="display:none">
-    <div class="auftrag-head">
+    <div class="auftrag-head" id="auftragHead">
       <span class="auftrag-nr" id="auftragNr">—</span>
       <span class="status-badge" id="statusBadge">offen</span>
       <span class="auftrag-datum" id="auftragDatum"></span>
       <span class="auftrag-zeiten" id="auftragZeiten"></span>
     </div>
-    <div class="auftrag-body">
+    <div class="auftrag-body" id="auftragBody">
       <!-- Kollabierbare Konfig: Kultur + Topfgröße -->
       <div id="konfigCollapsed" class="konfig-closed" style="display:none">
         <span class="konfig-sum" id="konfigSummary"></span>
@@ -353,6 +373,12 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
       <div id="konfigExpanded">
         <div class="cfg-grp">
           <div class="kul-header" id="kulHeader">KULTUR — EINZELAUSWAHL</div>
+          <div id="kulturSuchbereich">
+          <label class="kultur-suche-label" for="kulturSuche">Kultur suchen</label>
+          <input class="kultur-suche" type="search" id="kulturSuche" placeholder="Namensanfang, z. B. Ho" autocomplete="off" aria-controls="kulturChips" />
+          <button type="button" class="kultur-alle" id="alleKulturen" aria-pressed="false">Alle Kulturen anzeigen</button>
+          <div class="kultur-treffer" id="kulturTreffer" role="status"></div>
+          </div>
           <div class="chips" id="kulturChips"></div>
           <input class="freitext-kul" id="kulturFrei" placeholder="Freitext-Kultur eingeben" />
         </div>
@@ -360,16 +386,40 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
           <div class="lab">Topfgröße</div>
           <div class="chips" id="topfChips"></div>
         </div>
-        <button class="btn-fertig" type="button" id="btnFertig" disabled>✓ Fertig</button>
+      </div>
+      <div class="cfg-grp" id="auftragsZusatz">
+        <div class="lab" id="topfformLabel">Topfform *</div>
+        <div class="chips" id="topfformChips" role="group" aria-labelledby="topfformLabel" aria-describedby="konfigPflichtHinweis"></div>
+        <div class="substrat-felder">
+          <div><label for="substratAuftrNr">Substrate Auftr.Nr. *</label><input type="text" id="substratAuftrNr" maxlength="100" autocomplete="off" required></div>
+          <div><label for="substratArtNr">Art.Nr. *</label><input type="text" id="substratArtNr" maxlength="100" autocomplete="off" required></div>
+        </div>
       </div>
       <div style="font-size:.8rem;color:var(--ink-soft)" id="sonstRow"></div>
+
+      <!-- Notiz zum Auftrag: Probleme, Besonderheiten, Hinweise fuer die
+           Auswertung. Liegt auf der bestehenden Spalte "sonst", die bisher
+           nur im Admin-Dialog erreichbar war. -->
+      <div class="notiz-grp" id="notizGrp">
+        <div class="notiz-head">
+          <span class="lab" style="margin:0">📝 Notiz zum Auftrag</span>
+          <span class="notiz-status" id="notizStatus"></span>
+          <span class="notiz-zaehler" id="notizZaehler"></span>
+        </div>
+        <textarea id="notizFeld" maxlength="500" rows="2" spellcheck="true"
+                  placeholder="Probleme, Störungen, Besonderheiten …"></textarea>
+      </div>
+      <div id="fertigAktionen">
+        <div id="konfigPflichtHinweis" role="status" style="margin-top:12px;font-size:.85rem;color:var(--ink-soft)"></div>
+        <button class="btn-fertig" type="button" id="btnFertig" disabled>✓ Fertig</button>
+      </div>
     </div>
     <div class="gesamt-bar">
-      <div class="gesamt-highlight gesamt-tile-fixed">
+      <div class="gesamt-highlight gesamt-tile-fixed" id="mengeTile">
         <input type="text" inputmode="numeric" enterkeyhint="done" class="gesamt-input" id="gesamtStueck" min="0" step="1" placeholder="—" title="Gesamtstück manuell eintragen" style="width:100%;text-align:center" />
         <div class="gesamt-lab">Produzierte Menge</div>
       </div>
-      <div style="color:var(--ink-soft);font-size:.85rem" id="gesamtInfo">Manuell erfassen – Mayer hat keinen automatischen Zähler.</div>
+      <div style="color:var(--ink-soft);font-size:.85rem" id="gesamtInfo">Produzierte Menge bitte manuell eintragen.</div>
 
       <div style="margin-left:auto">
         <div class="gesamt-ma" id="maInfo"></div>
@@ -603,12 +653,18 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
     <div class="mc">
       <div>
         <div class="kul-header" id="nkKulHeader">KULTUR — EINZELAUSWAHL</div>
+        <label class="kultur-suche-label" for="nkKulturSuche">Kultur suchen</label>
+        <input class="kultur-suche" type="search" id="nkKulturSuche" placeholder="Namensanfang, z. B. Ho" autocomplete="off" aria-controls="nkKulturChips" />
+        <button type="button" class="kultur-alle" id="nkAlleKulturen" aria-pressed="false">Alle Kulturen anzeigen</button>
+        <div class="kultur-treffer" id="nkKulturTreffer" role="status"></div>
         <div class="chips" id="nkKulturChips"></div>
         <input class="freitext-kul" id="nkKulturFrei" placeholder="Freitext-Kultur" style="max-width:100%" />
       </div>
       <div id="nkTopfSection" style="display:none;margin-top:10px">
         <label>Topfgröße</label>
         <div class="chips" id="nkTopfChips"></div>
+        <label id="nkFormLabel" style="margin-top:12px">Topfform</label>
+        <div class="chips" id="nkFormChips" role="group" aria-labelledby="nkFormLabel"></div>
       </div>
       <div class="sec-head">Mitarbeiter in neuen Auftrag übernehmen</div>
       <div id="nkTransferList" style="display:flex;flex-direction:column;gap:6px;font-size:.9rem"></div>
@@ -670,7 +726,10 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
         <div class="sec-head">Mitarbeiter-Zeiten</div>
         <div id="editMaRows"></div>
       </div>
-      <div><label>Sonstiges</label><input type="text" id="editSonst" /></div>
+      <!-- Dasselbe Feld wie die Notiz im Auftrag (Spalte sonst). maxlength
+           entspricht der Server-Grenze; ohne sie liefe eine zu lange Eingabe
+           in einen abgelehnten und dann blockierten Sync-Eintrag. -->
+      <div><label>Notiz / Sonstiges</label><input type="text" id="editSonst" maxlength="500" /></div>
     </div>
     <div class="mf">
       <button class="mbtn ghost" id="editCancel">Abbrechen</button>
@@ -709,15 +768,16 @@ input.gesamt-input::-webkit-inner-spin-button,input.gesamt-input::-webkit-outer-
   </div>
 </div>
 
-<!-- Versionsparameter verhindert, dass nach einem Update noch die alte
-     Offline-Synchronisation aus dem Browser-Cache ausgefuehrt wird. -->
-<script src="sync.js?v=20260922-2"></script>
+<!-- Versionsparameter verhindert eine alte Sync-Fassung aus dem Browser-Cache. -->
+<script src="sync.js?v=20261016-topfform-1"></script>
+<script src="/kulturen.js?v=20261016-topfform-1"></script>
 <script>
 "use strict";
 /* ── Konfiguration ───────────────────────────────────────────────────── */
 const PNR_MIN = 1001, PNR_MAX = 99999;
 const RELOCK_MIN = 5; // Minuten Sperrzeit nach doppeltem Scan
 let KULTUREN  = [];
+let KULTUR_FREITEXT = 23;
 let ARBEITEN  = [];
 let TOPFGROESSEN = [];
 
@@ -899,9 +959,8 @@ function refreshAdminUI(){
   const reopenBtn = $("btnTagWiederOeffnen");
   if(reopenBtn) reopenBtn.style.display = (darf && state.dayIsClosed) ? "" : "none";
 
-  // Im Header statt in der scrollbaren Admin-Toolbar - direkt sichtbar, wie
-  // in Halle1/Rapido/Blumenband, nicht erst nach Scrollen durch Auftrag und
-  // Mitarbeiterliste.
+  // Datumswechsel ist ein administrativer Eingriff und wird nur ueber HTTPS
+  // fuer Meister/Admin angeboten.
   $("btnChangeDate").style.display = darf ? "inline-block" : "none";
 
   $("adminBadge").textContent = darf ? `🔓 ${_rolle}` : "";
@@ -966,8 +1025,6 @@ function _fetchTimeout(url, opts, timeoutMs){
 }
 function nowHM(){ const d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
 function pad(n){ return String(n).padStart(2, "0"); }
-// Einheitliche Quelle fuer "heute", u.a. um zu erkennen, ob state.datumISO
-// (per Datumswechsel) von heute abweicht.
 function heutigesDatumISO(){
   const d = new Date();
   return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
@@ -983,9 +1040,15 @@ function nettoH(start, ende, pause){
   m -= (pause || 0) * 60;
   return Math.max(0, m / 60);
 }
+/* Pausenfenster. Der Server liefert sie ueber /api/config (PAUSEN_FENSTER) und
+   rechnet die stuendliche Auswertung mit denselben Werten. Die Liste hier ist
+   nur der Rueckfall, falls die Konfiguration einmal nicht geladen werden
+   konnte - zwei getrennt gepflegte Fassungen waren der Grund, warum die
+   Auswertung die Pausenlage bisher nicht kannte. */
+let PAUSEN_FENSTER = [{s:9*60,e:9*60+15},{s:12*60,e:12*60+15},{s:15*60,e:15*60+15}];
 function calcAutoPause(start, ende){
   if(!start || !ende) return 0;
-  const BRK = [{s:9*60,e:9*60+15},{s:12*60,e:12*60+15},{s:15*60,e:15*60+15}];
+  const BRK = PAUSEN_FENSTER;
   const sM = timeToMin(start), eM0 = timeToMin(ende);
   let eM = eM0 < sM ? eM0 + 1440 : eM0;
   let min = 0;
@@ -993,7 +1056,7 @@ function calcAutoPause(start, ende){
   return min / 60;
 }
 function kulturName(k, frei){
-  if(k === 23) return frei || "Freitext";
+  if(k === KULTUR_FREITEXT) return frei || "Freitext";
   if(k && k >= 1 && k <= KULTUREN.length) return KULTUREN[k-1];
   return "";
 }
@@ -1063,7 +1126,7 @@ function auftragMissingList(a, closed){
   const miss = [];
   if(!a.auftrag_start) miss.push("Auftragsstart");
   if(a.kultur === null || a.kultur === undefined) miss.push("Kultur");
-  else if(a.kultur === KULTUREN.length + 1 && !(a.kultur_frei||"").trim()) miss.push("Freitext-Kultur");
+  else if(a.kultur === KULTUR_FREITEXT && !(a.kultur_frei||"").trim()) miss.push("Freitext-Kultur");
   if(!a.topfgroesse) miss.push("Topfgröße");
   if(closed && !a.auftrag_ende) miss.push("Auftragsende");
   if(closed && (a.gesamtstueck === null || a.gesamtstueck === undefined)) miss.push("Gesamtstück");
@@ -1077,7 +1140,7 @@ function auftragMissingList(a, closed){
 
 function orderTabLabel(a){
   const kultur = getKulturName(a) || "Kultur offen";
-  const topf = a.topfgroesse || "Topf offen";
+  const topf = TMKulturen.topf(a.topfgroesse) || "Topf offen";
   const menge = (a.gesamtstueck !== null && a.gesamtstueck !== undefined) ? `${a.gesamtstueck} Stk` : "Menge offen";
   return `${kultur} · ${topf} · ${menge}`;
 }
@@ -1232,11 +1295,13 @@ function renderAll(){
   else if(!has)  $("scanHint").textContent = "Kein Auftrag aktiv – Enter im Aufsicht-PNR-Feld drücken um Auftrag zu starten.";
   else           $("scanHint").textContent = "Scan → Mitarbeiter wird dem laufenden Auftrag zugeordnet. Ohne einzelne PNR: 👥 Sammelzeile.";
 
-  // Kein-Auftrag-State
-  $("noAuftragState").style.display = has ? "none" : "block";
-  $("auftragPanel").style.display   = has ? "block" : "none";
-  $("malist").style.display         = has ? "block" : "none";
-  $("actionBar").style.display      = has ? "flex"  : "none";
+  // Ohne Auftrag bleiben nur Uebersicht und Anmeldung sichtbar.
+  $("noAuftragState").style.display=has ? "none" : "block";
+  $("auftragPanel").style.display=has ? "block" : "none";
+  $("auftragHead").style.display=has ? "" : "none";
+  $("auftragBody").style.display=has ? "" : "none";
+  $("malist").style.display=has ? "block" : "none";
+  $("actionBar").style.display=has ? "flex" : "none";
 
   // Schicht-beenden Button: nur aktiv wenn Auftrag offen
 
@@ -1261,7 +1326,14 @@ function renderAll(){
     ? totalMH.toLocaleString("de-DE",{maximumFractionDigits:1})
     : "0,0";
 
-  if(!has) { refreshAdminUI(); return; }
+  if(!has) {
+    $("auftragPanel").classList.remove("incomplete");
+    $("auftragPanel").title = "";
+    $("maInfo").textContent = "";
+    $("maInfoDetail").textContent = "";
+    refreshAdminUI();
+    return;
+  }
   const closed = a.status === "abgeschlossen";
   const orderMissing = auftragMissingList(a, closed);
   $("auftragPanel").classList.toggle("incomplete", orderMissing.length > 0);
@@ -1283,11 +1355,13 @@ function renderAll(){
   // Konfig-Collapse: beim ersten Laden eines Auftrags auto-kollabieren wenn schon konfiguriert
   if(a.id !== _lastAuftragId){
     _lastAuftragId = a.id;
-    const alreadyConfigured = !!(a.kultur !== null && a.kultur !== undefined && a.topfgroesse);
+    const alreadyConfigured = fehlendeKonfig(a).length === 0;
     _konfigCollapsed = alreadyConfigured;
     _konfigEditTopf  = alreadyConfigured ? null : null; // bei neuem Auftrag: Topf nicht vorbelegt
   }
   renderKulturSection(a);
+  renderNotiz(a);
+  renderZusatz(a);
 
   // Gesamtstück: Input-Feld befüllen (nur wenn kein Fokus)
   const gs = $("gesamtStueck");
@@ -1316,7 +1390,7 @@ function renderAll(){
   $("gesamtInfo").textContent = totalMH > 0
     ? `${totalMH.toLocaleString("de-DE",{maximumFractionDigits:1})} Netto-Std.`
     : "";
-  // Kopfzahl neben der Menge.
+  // Kopfzahl zum Auftrag.
   //
   // Gezaehlt werden Personen, nicht Zeilen: eine Sammelzeile mit sieben Leuten
   // stand hier frueher als eine einzige, womit die Anzeige "2 aktiv" meldete,
@@ -1353,16 +1427,13 @@ function renderAll(){
 function chipSetup(container, items, current, onSelect, extraClass){
   container.innerHTML = "";
   items.forEach((label, i) => {
+    if(!label) return;
     const idx = i + 1;
     const b = document.createElement("button");
     b.type = "button";
     b.className = "chip" + (extraClass ? " " + extraClass : "") + (current === idx ? " on" : "");
     b.dataset.v = idx;
-    if(extraClass === "kul"){
-      b.innerHTML = `<span class="kul-num">${idx}</span>${label}`;
-    } else {
-      b.textContent = label;
-    }
+    b.textContent = label;
     b.onclick = () => onSelect(idx === current ? null : idx);
     container.appendChild(b);
   });
@@ -1370,37 +1441,193 @@ function chipSetup(container, items, current, onSelect, extraClass){
 
 function getKulturName(a){
   if(!a || a.kultur === null || a.kultur === undefined) return null;
-  const freiIdx = KULTUREN.length + 1;
+  const freiIdx = KULTUR_FREITEXT;
   if(a.kultur === freiIdx) return a.kultur_frei || "Freitext";
   return KULTUREN[a.kultur - 1] || null;
 }
 
+/* ── Notiz zum Auftrag ───────────────────────────────────────────────────
+   Liegt auf der bestehenden Spalte "sonst". Drei Dinge sind hier wichtig und
+   nicht offensichtlich:
+
+   1. renderAll() laeuft alle 30 Sekunden ueber den periodischen Abgleich. Ohne
+      Fokus- und Aenderungsschutz wuerde das Feld waehrend des Tippens vom
+      Serverstand ueberschrieben.
+   2. Gespeichert wird entprellt schon beim Tippen, nicht erst beim Verlassen
+      des Feldes: der Seitenzustand liegt nur im Arbeitsspeicher, ein Neuladen
+      vor dem Speichern wuerde den Text sonst verlieren.
+   3. Bei abgeschlossenem Auftrag oder abgeschlossenem Tag verlangt der Server
+      eine Schreibrolle. Das Feld wird deshalb gesperrt statt in einen
+      abgelehnten und dann blockierten Sync-Eintrag zu laufen.            */
+const NOTIZ_MAX      = 500;   // identisch zur Server-Grenze (max_length=500)
+const NOTIZ_ENTPRELL = 800;   // ms
+let _notizTimer   = null;
+let _notizDirty   = false;    // ungespeicherte Eingabe im Feld?
+let _notizAuftrag = null;     // zu welchem Auftrag gehoert der Feldinhalt?
+
+const _zusatzLokal = new Map();
+function schuetzeZusatz(a,server){
+  const entwurf=_zusatzLokal.get(a.id);if(!entwurf)return;
+  if(Object.keys(entwurf).every(k=>(server[k] || '')===entwurf[k])) _zusatzLokal.delete(a.id);
+  Object.assign(a,entwurf);
+}
+function renderZusatz(a){
+  const gesperrt=konfigGesperrt(a);
+  for(const [id,key] of [['substratAuftrNr','substrat_auftr_nr'],['substratArtNr','substrat_art_nr']]){
+    const el=$(id);
+    if(el.dataset.auftragId!==a.id || document.activeElement!==el) el.value=a[key] || '';
+    el.dataset.auftragId=a.id;el.disabled=gesperrt;
+  }
+  const c=$('topfformChips');c.replaceChildren();
+  for(const form of ['rund','eckig']){
+    const b=document.createElement('button');b.type='button';b.textContent=form;
+    b.className='chip topf'+(a.topfform===form?' on':'');b.disabled=gesperrt;
+    b.setAttribute('aria-pressed',String(a.topfform===form));
+    b.onclick=()=>{if(konfigGesperrt(a))return;a.topfform=a.topfform===form?'':form;queueZusatz(a);_konfigCollapsed=false;renderKulturSection(a);renderZusatz(a);};
+    c.appendChild(b);
+  }
+  updateFertig(a);
+}
+function queueZusatz(a){
+  _zusatzLokal.set(a.id,{topfform:a.topfform || '',substrat_auftr_nr:a.substrat_auftr_nr || '',substrat_art_nr:a.substrat_art_nr || ''});
+  return TMSync.queueAuftragZusatz({auftrag_id:a.id,topfform:a.topfform || '',
+    substrat_auftr_nr:a.substrat_auftr_nr || '',substrat_art_nr:a.substrat_art_nr || ''});
+}
+for(const [id,key] of [['substratAuftrNr','substrat_auftr_nr'],['substratArtNr','substrat_art_nr']]){
+  $(id).addEventListener('input',()=>{
+    const el=$(id),a=state.auftraege.find(x=>x.id===el.dataset.auftragId);
+    if(!a || konfigGesperrt(a))return;
+    a[key]=el.value;queueZusatz(a);_konfigCollapsed=false;renderKulturSection(a);
+  });
+}
+
+function renderNotiz(a){
+  const el = $("notizFeld"); if(!el) return;
+  const gesperrt = konfigGesperrt(a);
+  el.disabled = gesperrt;
+  el.placeholder = !gesperrt ? "Probleme, Störungen, Besonderheiten …"
+    : (state.dayIsClosed ? "Tag abgeschlossen – Änderung nur über Bearbeiten"
+                         : "Auftrag abgeschlossen – Änderung nur über Bearbeiten");
+
+  // Auftragswechsel: ausstehende Eingabe des vorigen Auftrags erst sichern,
+  // sonst landet sie beim falschen Auftrag oder geht verloren.
+  if(_notizAuftrag && _notizAuftrag !== a.id){
+    if(_notizDirty) notizSpeichern(_notizAuftrag, el.value);
+    _notizDirty = false;
+  }
+  _notizAuftrag = a.id;
+
+  const serverwert = a.sonst || "";
+  if(document.activeElement !== el && !_notizDirty && el.value !== serverwert){
+    el.value = serverwert;
+  }
+  notizZaehlerAktualisieren();
+}
+
+function notizZaehlerAktualisieren(){
+  const el = $("notizFeld"), z = $("notizZaehler"); if(!el || !z) return;
+  const n = el.value.length;
+  z.textContent = n > NOTIZ_MAX - 100 ? `${n}/${NOTIZ_MAX}` : "";
+  z.classList.toggle("voll", n >= NOTIZ_MAX);
+}
+
+function notizStatus(text, ok){
+  const s = $("notizStatus"); if(!s) return;
+  s.textContent = text || "";
+  s.classList.toggle("ok", !!ok);
+}
+
+function notizSpeichern(auftragId, text){
+  if(!auftragId) return;
+  const wert = String(text || "").slice(0, NOTIZ_MAX);
+  const a = state.auftraege.find(x => x.id === auftragId) || state.auftrag;
+  if(a && (a.sonst || "") === wert){ _notizDirty = false; notizStatus(""); return; }
+  if(a) a.sonst = wert;
+  // Eigene Vorgangskennung: die Warteschlange haelt je Kennung nur einen
+  // Eintrag. Mit der allgemeinen Kennung "aupd-<id>" wuerde eine spaeter
+  // geaenderte Topfgroesse die noch nicht gesendete Notiz ueberschreiben.
+  TMSync.queueAuftragNotiz({ auftrag_id: auftragId, sonst: wert });
+  _notizDirty = false;
+  notizStatus("gespeichert", true);
+  setTimeout(() => { if(!_notizDirty) notizStatus(""); }, 2500);
+}
+
+(function notizFeldVerdrahten(){
+  const el = $("notizFeld"); if(!el) return;
+  el.addEventListener("input", () => {
+    _notizDirty = true;
+    notizStatus("wird gespeichert …");
+    notizZaehlerAktualisieren();
+    clearTimeout(_notizTimer);
+    _notizTimer = setTimeout(() => notizSpeichern(_notizAuftrag, el.value), NOTIZ_ENTPRELL);
+  });
+  el.addEventListener("blur", () => {
+    clearTimeout(_notizTimer);
+    if(_notizDirty) notizSpeichern(_notizAuftrag, el.value);
+  });
+  // Enter fuegt eine Zeile ein und darf nicht als Abschluss wirken; der
+  // Scanner-Listener nimmt dieses Feld ohnehin aus (siehe dort).
+  el.addEventListener("keydown", ev => { ev.stopPropagation(); });
+  // Beim Schliessen des Tabs oder Wechsel in den Hintergrund noch sichern.
+  window.addEventListener("beforeunload", () => {
+    if(_notizDirty) notizSpeichern(_notizAuftrag, el.value);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if(document.hidden && _notizDirty) notizSpeichern(_notizAuftrag, el.value);
+  });
+})();
+
+let _kulturSucheAuftragId = null;
+function fehlendeKonfig(a, mitEntwurf=false){
+  const fehlt=[];
+  if(a.kultur === null || a.kultur === undefined) fehlt.push('Kultur');
+  if(a.kultur === KULTUR_FREITEXT && !String(a.kultur_frei || '').trim()) fehlt.push('Freitext-Kultur');
+  if(!(mitEntwurf && _konfigEditTopf !== null ? _konfigEditTopf : a.topfgroesse)) fehlt.push('Topfgröße');
+  if(!['rund','eckig'].includes(a.topfform)) fehlt.push('Topfform');
+  if(!String(a.substrat_auftr_nr || '').trim()) fehlt.push('Substrate Auftr.Nr.');
+  if(!String(a.substrat_art_nr || '').trim()) fehlt.push('Art.Nr.');
+  return fehlt;
+}
+function updateFertig(a){
+  const fehlt=fehlendeKonfig(a,true);
+  const eingeklappt=_konfigCollapsed && fehlendeKonfig(a).length===0;
+  $('btnFertig').disabled=konfigGesperrt(a) || fehlt.length>0;
+  for(const id of ['auftragsZusatz','notizGrp','fertigAktionen']){
+    $(id).style.display=eingeklappt ? 'none' : 'block';
+  }
+  $('konfigPflichtHinweis').textContent=fehlt.length ? 'Noch erforderlich: '+fehlt.join(', ') : '';
+}
 function renderKulturSection(a){
-  const hasKultur = a.kultur !== null && a.kultur !== undefined;
-  const hasTopf   = !!a.topfgroesse;
-  const ready     = hasKultur && hasTopf;
+  if(_kulturSucheAuftragId !== a.id){
+    $("kulturSuche").value = "";
+    $("kulturChips").dataset.alleAnzeigen = "false";
+    $("alleKulturen").textContent = "Alle Kulturen anzeigen";
+    $("alleKulturen").setAttribute("aria-pressed", "false");
+    _kulturSucheAuftragId = a.id;
+  }
+  const ready = fehlendeKonfig(a).length === 0;
   // Kollabiert oder expandiert?
   if(_konfigCollapsed && ready){
     $("konfigCollapsed").style.display = "flex";
     $("konfigExpanded").style.display  = "none";
-    $("konfigSummary").textContent = `${getKulturName(a)} · ${a.topfgroesse}`;
+    $("konfigSummary").textContent = `${getKulturName(a)} · ${TMKulturen.topf(a.topfgroesse)} · ${a.topfform} · Substrate Auftr.Nr.: ${a.substrat_auftr_nr} · Art.Nr.: ${a.substrat_art_nr}`;
   } else {
     $("konfigCollapsed").style.display = "none";
     $("konfigExpanded").style.display  = "block";
     renderKulturChips(a);
     updateKulturTopfUI(a);
+    renderTopfChips(a);
   }
+  updateFertig(a);
 }
 
 function updateKulturTopfUI(a){
-  const freiIdx = KULTUREN.length + 1;
   const hasKultur = a.kultur !== null && a.kultur !== undefined;
   // Topf-Section sichtbar sobald Kultur gewählt
   $("topfSection").style.display = hasKultur ? "block" : "none";
-  // Fertig-Button: Kultur UND frisch gewähltes Topf erforderlich
-  $("btnFertig").disabled = !(hasKultur && (_konfigEditTopf !== null || !!a.topfgroesse));
+  updateFertig(a);
   // Kultur-Header
-  $("kulHeader").textContent = `KULTUR — EINZELAUSWAHL, ${freiIdx} = FREITEXT`;
+  $("kulHeader").textContent = "KULTUR — EINZELAUSWAHL";
 }
 
 function renderTopfChips(a){
@@ -1411,83 +1638,132 @@ function renderTopfChips(a){
     const b = document.createElement("button");
     // Topfgröße NIEMALS vorbelegt — nur die in dieser Session aktiv gewählte (_konfigEditTopf)
     const selectedTopf = _konfigEditTopf !== null ? _konfigEditTopf : a.topfgroesse;
-    b.type = "button"; b.className = "chip topf" + (selectedTopf === name ? " on" : "");
+    b.type = "button"; b.className = "chip topf" + (TMKulturen.topf(selectedTopf) === name ? " on" : "");
     b.textContent = name;
     b.disabled = gesperrt;
     b.onclick = () => {
       if(gesperrt) return;
       _konfigEditTopf = (_konfigEditTopf === name ? null : name);
       renderTopfChips(a);
-      $("btnFertig").disabled = !(a.kultur !== null && (_konfigEditTopf !== null || !!a.topfgroesse));
+      updateFertig(a);
     };
     c.appendChild(b);
   });
 }
 
 // Nur die Schaltflaechen umordnen: Nummern und Klickzuordnungen bleiben erhalten.
+// Suchfelder bleiben beim periodischen Rendern unangetastet; nur die Treffer
+// werden erneuert. Die Suche ist rein lokal und schreibt nichts in die Outbox.
+function filterKulturSuche(a=state.auftrag){
+  const gewaehlt=a && a.kultur !== null && a.kultur !== undefined;
+  const c=$("kulturChips");
+  $("kulturSuchbereich").style.display=gewaehlt ? "none" : "block";
+  if(gewaehlt){
+    c.hidden=false;
+    [...c.children].forEach(b=>{b.hidden=Number(b.dataset.kulturId)!==a.kultur;});
+  }else{
+    TMKulturen.filterChips(c, $("kulturSuche").value, $("kulturTreffer"));
+  }
+}
+function resetKultursuche(){
+  $("kulturSuche").value="";
+  $("kulturChips").dataset.alleAnzeigen="false";
+  $("alleKulturen").textContent="Alle Kulturen anzeigen";
+  $("alleKulturen").setAttribute("aria-pressed","false");
+}
+function filterNkKulturSuche(){
+  TMKulturen.filterChips($("nkKulturChips"), $("nkKulturSuche").value, $("nkKulturTreffer"));
+}
+function kulturSucheBedienung(inputId, containerId, buttonId, filtern){
+  $(inputId).addEventListener("input", ()=>{
+    $(containerId).dataset.alleAnzeigen = "false";
+    $(buttonId).textContent = "Alle Kulturen anzeigen";
+    $(buttonId).setAttribute("aria-pressed", "false");
+    filtern();
+  });
+  $(buttonId).onclick = ()=>{
+    const alle = $(containerId).dataset.alleAnzeigen !== "true";
+    $(containerId).dataset.alleAnzeigen = String(alle);
+    $(inputId).value = "";
+    $(buttonId).textContent = alle ? "Liste ausblenden" : "Alle Kulturen anzeigen";
+    $(buttonId).setAttribute("aria-pressed", String(alle));
+    filtern();
+  };
+}
+kulturSucheBedienung("kulturSuche", "kulturChips", "alleKulturen", filterKulturSuche);
+kulturSucheBedienung("nkKulturSuche", "nkKulturChips", "nkAlleKulturen", filterNkKulturSuche);
+
 function sortiereKulturChips(container){
-  const name = b => b.textContent.replace(/^\s*\d+\s*/, "");
+  const name = b => b.textContent;
   [...container.children]
     .sort((a,b)=>name(a).localeCompare(name(b), "de"))
     .forEach(b=>container.appendChild(b));
 }
 
 function renderKulturChips(a){
-  const freiIdx = KULTUREN.length + 1;
+  const freiIdx = KULTUR_FREITEXT;
   const c = $("kulturChips"); if(!c) return;
   const gesperrt = konfigGesperrt(a);
   c.innerHTML = "";
   KULTUREN.forEach((name, i) => {
+    if(!name) return;
     const idx = i + 1;
     const b = document.createElement("button");
     b.type = "button"; b.className = "chip kul" + (a.kultur === idx ? " on" : "");
-    b.innerHTML = `<span class="kul-num">${idx}</span>${name}`;
+    b.textContent = name;
+    b.dataset.kulturId=String(idx);
     b.disabled = gesperrt;
     b.onclick = () => {
       if(gesperrt) return;
       a.kultur = (a.kultur === idx ? null : idx);
+      if(a.kultur===null) resetKultursuche();
       if(a.kultur !== freiIdx) a.kultur_frei = "";
       _konfigEditTopf = null;
       a.topfgroesse = "";
-      TMSync.queueAuftragUpdate({ auftrag_id: a.id, kultur: a.kultur, kultur_frei: a.kultur_frei, topfgroesse: "" });
+      queueKonfig(a);
       renderKulturChips(a);
       $("kulturFrei").classList.toggle("show", a.kultur === freiIdx);
       updateKulturTopfUI(a);
       renderTopfChips(a);
+      if(a.kultur===null) $("kulturSuche").focus();
     };
     c.appendChild(b);
   });
   // Freitext-Chip
   const bf = document.createElement("button");
   bf.type = "button"; bf.className = "chip kul" + (a.kultur === freiIdx ? " on" : "");
-  bf.innerHTML = `<span class="kul-num">${freiIdx}</span>Freitext`;
+  bf.textContent = "Freitext";
+  bf.dataset.kulturId=String(freiIdx);
   bf.disabled = gesperrt;
   bf.onclick = () => {
     if(gesperrt) return;
     a.kultur = (a.kultur === freiIdx ? null : freiIdx);
+    if(a.kultur===null) resetKultursuche();
     _konfigEditTopf = null;
     a.topfgroesse = "";
-    TMSync.queueAuftragUpdate({ auftrag_id: a.id, kultur: a.kultur, kultur_frei: a.kultur_frei, topfgroesse: "" });
+    queueKonfig(a);
     renderKulturChips(a);
     $("kulturFrei").classList.toggle("show", a.kultur === freiIdx);
     updateKulturTopfUI(a);
     renderTopfChips(a);
+    if(a.kultur===null) $("kulturSuche").focus();
   };
   c.appendChild(bf);
   sortiereKulturChips(c);
+  filterKulturSuche(a);
   $("kulturFrei").classList.toggle("show", a.kultur === freiIdx);
   $("kulturFrei").disabled = gesperrt;
   $("kulturFrei").value = a.kultur_frei || "";
   // Header aktualisieren
-  $("kulHeader").textContent = `KULTUR — EINZELAUSWAHL, ${freiIdx} = FREITEXT`;
+  $("kulHeader").textContent = "KULTUR — EINZELAUSWAHL";
 }
 
 // Fertig-Button Handler — commit Topf zu a.topfgroesse, kollabieren
 $("btnFertig").onclick = () => {
   const a = state.auftrag; if(!a) return;
-  if(_konfigEditTopf === null && !a.topfgroesse) return; // Sicherheitscheck
+  if(konfigGesperrt(a) || fehlendeKonfig(a,true).length) return;
   if(_konfigEditTopf !== null) a.topfgroesse = _konfigEditTopf;
-  TMSync.queueAuftragUpdate({ auftrag_id: a.id, topfgroesse: a.topfgroesse });
+  queueKonfig(a);
   _konfigCollapsed = true;
   renderAll(); // Neuer-Auftrag-Button-Zustand und Zusammenfassung aktualisieren
 };
@@ -1508,7 +1784,8 @@ $("kulturFrei").addEventListener("input", () => {
   if(!state.auftrag) return;
   if(konfigGesperrt(state.auftrag)) return;
   state.auftrag.kultur_frei = $("kulturFrei").value;
-  TMSync.queueAuftragUpdate({ auftrag_id: state.auftrag.id, kultur_frei: state.auftrag.kultur_frei });
+  queueKonfig(state.auftrag);
+  updateFertig(state.auftrag);
 });
 
 // Produzierte Menge manuell eintragen; Leeren ist gegen versehentliches Loeschen geschuetzt.
@@ -2036,6 +2313,13 @@ let scanBuf = "", scanLast = 0, scanField = null, scanFieldVal = "";
 document.addEventListener("keydown", ev => {
   _audioWake(); // Audio-Kontext bei jedem Tastendruck aufwecken (Scanner)
   if(ev.target.id === "iPnr" || ev.target.id === "fService") return;
+  // Notizfeld ausnehmen. Ohne diese Zeile waere es unbenutzbar: der Scanner-
+  // Zweig sammelt Ziffern, unterdrueckt ab dem zweiten Zeichen die Eingabe
+  // und macht aus einem Enter (Zeilenumbruch) einen PNR-Scan - und setzt das
+  // Feld dabei ueber scanField.value = scanFieldVal auf den Stand vor der
+  // Ziffer zurueck. Getippter Text waere damit weg.
+  if(["substratAuftrNr","substratArtNr"].includes(ev.target.id)) return;
+  if(ev.target.id === "notizFeld" || ev.target.id === "kulturSuche" || ev.target.id === "nkKulturSuche") return;
   if(ev.target.type === "password") return;
   const tag = (ev.target.tagName||"").toLowerCase();
   const inField = tag === "input" || tag === "textarea";
@@ -2121,11 +2405,12 @@ $("fService").addEventListener("keydown", ev => {
 })();
 
 /* ── Neue-Kultur-Modal ───────────────────────────────────────────────── */
+let _nkForm = "";
 let _nkKultur = null, _nkKulturFrei = "", _nkTopf = "", _nkTransferIds = new Set(), _nkEnde = "", _nkStueck = null;
 
 function openNeueKulturModal(){
   const a = state.auftrag; if(!a) return;
-  const freiIdx = KULTUREN.length + 1;
+  const freiIdx = KULTUR_FREITEXT;
   // Endzeit vorbelegen
   $("nkEnde").value = nowHM();
   // Gesamtstück vorbelegen
@@ -2137,7 +2422,7 @@ function openNeueKulturModal(){
   // Laufenden Auftrag anzeigen
   const kulName = a.kultur === freiIdx ? (a.kultur_frei || "Freitext")
                 : (a.kultur && a.kultur >= 1 && a.kultur <= KULTUREN.length ? KULTUREN[a.kultur - 1] : "—");
-  const topfName = a.topfgroesse || "—";
+  const topfName = TMKulturen.topf(a.topfgroesse) || "—";
   const info = $("nkCurrentInfo");
   if(info) info.innerHTML = `<b>Laufender Auftrag:</b> ${esc(kulName)} &nbsp;·&nbsp; ${esc(topfName)}`;
   $("nkStueck").addEventListener("keydown", ev => {
@@ -2153,8 +2438,12 @@ $("nkStueck").oninput = updateNkStep1Ok;
 }
 
 function openNkStep2Modal(a){
-  const freiIdx = KULTUREN.length + 1;
-  _nkKultur = null; _nkKulturFrei = ""; _nkTopf = "";
+  const freiIdx = KULTUR_FREITEXT;
+  _nkKultur = null; _nkKulturFrei = ""; _nkTopf = ""; _nkForm = "";
+  $("nkKulturSuche").value = "";
+  $("nkKulturChips").dataset.alleAnzeigen = "false";
+  $("nkAlleKulturen").textContent = "Alle Kulturen anzeigen";
+  $("nkAlleKulturen").setAttribute("aria-pressed", "false");
   // Wenn Auftrag bereits abgeschlossen (Pause-Flow): Werte aus Auftrag übernehmen
   // und ALLE Mitarbeiter zur Übernahme anbieten (haben alle eine Endzeit bekommen)
   const fromClosed = a.status === "abgeschlossen";
@@ -2167,15 +2456,8 @@ function openNkStep2Modal(a){
   _nkTransferIds = new Set((a.mitarbeiter||[]).filter(m => pauseEnde ? m.ende === pauseEnde : !m.ende).map(m => m.id));
   renderNkTransferList(a, pauseEnde);
   $("nkTopfSection").style.display = "none";
-  if($("nkKulHeader")) $("nkKulHeader").textContent = `KULTUR — EINZELAUSWAHL, ${freiIdx} = FREITEXT`;
-  buildModalChips("nkKulturChips", KULTUREN, null, "kul", v => {
-    _nkKultur = v;
-    $("nkKulturFrei").classList.toggle("show", v !== null && v === freiIdx);
-    $("nkTopfSection").style.display = (v !== null) ? "block" : "none";
-    if(v === null){ _nkTopf = ""; buildModalChips("nkTopfChips", TOPFGROESSEN, null, "topf", tv => { _nkTopf = tv === null ? "" : TOPFGROESSEN[tv-1]; updateNkOk(); }); }
-    updateNkOk();
-  }, true);
-  buildModalChips("nkTopfChips", TOPFGROESSEN, null, "topf", v => { _nkTopf = v === null ? "" : TOPFGROESSEN[v-1]; updateNkOk(); });
+  if($("nkKulHeader")) $("nkKulHeader").textContent = "KULTUR — EINZELAUSWAHL";
+  baueNkKonfiguration();
   $("nkKulturFrei").value = "";
   $("nkKulturFrei").classList.remove("show");
   $("nkKulturFrei").oninput = () => { _nkKulturFrei = $("nkKulturFrei").value; updateNkOk(); };
@@ -2204,13 +2486,13 @@ function renderNkTransferList(a, pauseEnde){
 
 function buildModalChips(containerId, items, current, cls, onSelect, addFreitext){
   const c = $(containerId); c.innerHTML = "";
-  let sel = null;
+  let sel = current;
   items.forEach((label, i) => {
+    if(!label) return;
     const idx = i + 1;
     const b = document.createElement("button");
-    b.type = "button"; b.className = "chip " + cls;
-    if(cls === "kul") b.innerHTML = `<span class="kul-num">${idx}</span>${label}`;
-    else b.textContent = label;
+    b.type = "button"; b.className = "chip " + cls + (current === idx ? " on" : "");
+    b.textContent = label;
     b.onclick = () => {
       sel = (sel === idx ? null : idx);
       c.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
@@ -2220,10 +2502,10 @@ function buildModalChips(containerId, items, current, cls, onSelect, addFreitext
     c.appendChild(b);
   });
   if(addFreitext){
-    const freiIdx = KULTUREN.length + 1;
+    const freiIdx = KULTUR_FREITEXT;
     const bf = document.createElement("button");
-    bf.type = "button"; bf.className = "chip kul";
-    bf.innerHTML = `<span class="kul-num">${freiIdx}</span>Freitext`;
+    bf.type = "button"; bf.className = "chip kul" + (current === freiIdx ? " on" : "");
+    bf.textContent = "Freitext";
     bf.onclick = () => {
       sel = (sel === freiIdx ? null : freiIdx);
       c.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
@@ -2232,7 +2514,7 @@ function buildModalChips(containerId, items, current, cls, onSelect, addFreitext
     };
     c.appendChild(bf);
   }
-  if(cls === "kul") sortiereKulturChips(c);
+  if(cls === "kul"){ sortiereKulturChips(c); filterNkKulturSuche(); }
 }
 /* ── Schritt-1-Validierung: Gesamtstück muss gesetzt sein ───────────────── */
 function updateNkStep1Ok(){
@@ -2258,7 +2540,7 @@ function updateNkOk(){
 /* ── Auftrag-Abschließen-Modal (Pause) ────────────────────────────────── */
 function openPaModal(){
   const a = state.auftrag; if(!a) return;
-  const freiIdx = KULTUREN.length + 1;
+  const freiIdx = KULTUR_FREITEXT;
   $("paEnde").value = nowHM();
   const gsInp = $("gesamtStueck");
   const gsIv  = gsInp ? parseInt(gsInp.value, 10) : NaN;
@@ -2267,7 +2549,7 @@ function openPaModal(){
                       : (gsAv !== null && gsAv !== undefined ? gsAv : "");
   const kulName  = a.kultur === freiIdx ? (a.kultur_frei || "Freitext")
                  : (a.kultur && a.kultur >= 1 && a.kultur <= KULTUREN.length ? KULTUREN[a.kultur - 1] : "—");
-  const topfName = a.topfgroesse || "—";
+  const topfName = TMKulturen.topf(a.topfgroesse) || "—";
   const info = $("paCurrentInfo");
   if(info) info.innerHTML = `<b>Laufender Auftrag:</b> ${esc(kulName)} &nbsp;·&nbsp; ${esc(topfName)}`;
   $("paStueck").addEventListener("keydown", ev => {
@@ -2352,9 +2634,8 @@ $("nkOk").onclick = () => {
      Aufträge ab). Stattdessen: direkt neuen Auftrag anlegen + Mitarbeiter
      per queueScan eintragen, alter Auftrag bleibt unverändert.           */
   if(a.status === "abgeschlossen"){
-    TMSync.queueAuftragNew({ id: newId, datum: state.datumISO, auftrag_start: newStart });
-    if(_nkKultur !== null || _nkKulturFrei || _nkTopf)
-      TMSync.queueAuftragUpdate({ auftrag_id: newId, kultur: _nkKultur, kultur_frei: _nkKulturFrei, topfgroesse: _nkTopf });
+    TMSync.queueAuftragNew({ id: newId, datum: state.datumISO, auftrag_start: newStart,
+      arbeit: "", kultur: _nkKultur, kultur_frei: _nkKulturFrei, topfform: _nkForm, topfgroesse: _nkTopf });
     const transferred = [];
     _nkTransferIds.forEach(mid => {
       const m = (a.mitarbeiter||[]).find(x => x.id === mid); if(!m) return;
@@ -2371,7 +2652,7 @@ $("nkOk").onclick = () => {
       id: newId, auftragsnr: "TM-…", datum: state.datumISO,
       auftrag_start: newStart, auftrag_ende: "", status: "offen",
       arbeit: "", kultur: _nkKultur, kultur_frei: _nkKulturFrei,
-      topfgroesse: _nkTopf, gesamtstueck: null, sonst: "",
+      topfform: _nkForm, topfgroesse: _nkTopf, gesamtstueck: null, sonst: "",
       mitarbeiter: transferred,
     };
     upsertAuftragInList(state.auftrag);
@@ -2409,6 +2690,7 @@ $("nkOk").onclick = () => {
     kultur:            _nkKultur,
     kultur_frei:       _nkKulturFrei,
     topfgroesse:       _nkTopf,
+    topfform:         _nkForm,
     transfer_mz_ids:   Array.from(_nkTransferIds),
   });
 
@@ -2425,7 +2707,7 @@ $("nkOk").onclick = () => {
     id: newId, auftragsnr: "TM-…", datum: state.datumISO,
     auftrag_start: ende, auftrag_ende: "", status: "offen",
     arbeit: "", kultur: _nkKultur, kultur_frei: _nkKulturFrei,
-    topfgroesse: _nkTopf, gesamtstueck: null, sonst: "",
+    topfform: _nkForm, topfgroesse: _nkTopf, gesamtstueck: null, sonst: "",
     mitarbeiter: transferred,
   };
   upsertAuftragInList(state.auftrag);
@@ -2829,6 +3111,7 @@ $("btnExportCsv").onclick = async () => {
 /* ── Daten vom Server laden ───────────────────────────────────────────── */
 async function loadAndMerge(){
   try {
+    const pendingKonfig = await TMSync.pendingKonfigurationen().catch(()=>({}));
     const dayOrders = await _fetchTimeout(`/api/auftraege?von=${state.datumISO}&bis=${state.datumISO}`).then(r => r.json());
     if(Array.isArray(dayOrders)){
       dayOrders.forEach(serverOrder => {
@@ -2840,9 +3123,11 @@ async function loadAndMerge(){
           const savedTopf       = local.topfgroesse;
           const savedEnde       = local.auftrag_ende;
           const savedStueck     = local.gesamtstueck;
+          const savedSonst      = local.sonst;
           const savedMitarbeiter = local.mitarbeiter || [];
           const workers = serverOrder.mitarbeiter || [];
           Object.assign(local, serverOrder);
+          schuetzeKonfig(local, pendingKonfig[local.id]);
           // Status nie zurücksetzen: abgeschlossen bleibt abgeschlossen (pending sync)
           if(savedStatus === "abgeschlossen") local.status = "abgeschlossen";
           // Lokal gesetzte Werte beibehalten wenn Server sie noch nicht hat (pending sync)
@@ -2853,19 +3138,24 @@ async function loadAndMerge(){
           if(!local.auftrag_ende && savedEnde)      local.auftrag_ende = savedEnde;
           if((local.gesamtstueck === null || local.gesamtstueck === undefined) && savedStueck !== null && savedStueck !== undefined)
             local.gesamtstueck = savedStueck;
+          // Notiz: eine lokal erfasste, noch nicht synchronisierte Notiz darf
+          // der Serverstand nicht ueberschreiben - der Abgleich laeuft alle
+          // 30 Sekunden und wuerde sie sonst zuverlaessig verschlucken.
+          if(!local.sonst && savedSonst) local.sonst = savedSonst;
+          schuetzeKonfig(local, pendingKonfig[local.id]);
           local.mitarbeiter = savedMitarbeiter;
+          schuetzeZusatz(local, serverOrder);
           mergeWorkersIntoLocal(local, workers);
           if(state.auftrag && state.auftrag.id === local.id) state.auftrag = local;
         } else {
+          schuetzeKonfig(serverOrder, pendingKonfig[serverOrder.id]);
           upsertAuftragInList(serverOrder);
         }
       });
     }
-    // /api/auftrag/active liefert den global aktiven Auftrag (heutiges
-    // Datum, siehe get_active_auftrag) - fuer einen abweichend gewaehlten
-    // Tag (Datumswechsel, Meister/Admin) waere das immer der HEUTIGE
-    // Auftrag, nicht der des betrachteten Tages. Der Fallback-Zweig unten
-    // (letzter Auftrag aus state.auftraege) übernimmt fuer diesen Fall.
+    // Der globale aktive Auftrag gehoert immer zum heutigen Produktionstag.
+    // Bei einem Nachtrag stammt die Auswahl ausschliesslich aus der oben fuer
+    // state.datumISO geladenen Tagesliste.
     const heuteGewaehlt = state.datumISO === heutigesDatumISO();
     const active = heuteGewaehlt ? await TMSync.loadActiveAuftrag().catch(() => null) : null;
     if(active && active.id){
@@ -2877,9 +3167,11 @@ async function loadAndMerge(){
         const savedTopf       = existing.topfgroesse;
         const savedEnde       = existing.auftrag_ende;
         const savedStueck     = existing.gesamtstueck;
+        const savedSonst      = existing.sonst;
         const savedMitarbeiter = existing.mitarbeiter || [];
         const workers = active.mitarbeiter || [];
         Object.assign(existing, active);
+        schuetzeKonfig(existing, pendingKonfig[existing.id]);
         if(savedStatus === "abgeschlossen") existing.status = "abgeschlossen";
         if((existing.kultur === null || existing.kultur === undefined) && savedKultur !== null && savedKultur !== undefined)
           existing.kultur = savedKultur;
@@ -2888,9 +3180,13 @@ async function loadAndMerge(){
         if(!existing.auftrag_ende && savedEnde)      existing.auftrag_ende = savedEnde;
         if((existing.gesamtstueck === null || existing.gesamtstueck === undefined) && savedStueck !== null && savedStueck !== undefined)
           existing.gesamtstueck = savedStueck;
+        if(!existing.sonst && savedSonst) existing.sonst = savedSonst;
+        schuetzeKonfig(existing, pendingKonfig[existing.id]);
         existing.mitarbeiter = savedMitarbeiter;
+        schuetzeZusatz(existing, active);
         mergeWorkersIntoLocal(existing, workers);
       } else {
+        schuetzeKonfig(active, pendingKonfig[active.id]);
         upsertAuftragInList(active);
       }
       if(!state.selectedAuftragId || !state.auftrag || state.auftrag.status !== "abgeschlossen"){
@@ -2933,22 +3229,23 @@ async function loadAndMerge(){
   } catch(e){ /* offline - State beibehalten */ }
 }
 
-/* ── Datum wechseln (Meister/Admin) ────────────────────────────────────────
- * Erlaubt, Auftraege eines anderen Tages anzusehen und - ueber den normalen
- * Aufsicht-PNR-Fluss in handleServicePnr() - rueckwirkend neue anzulegen.
- * /api/auftrag/active bleibt davon unberuehrt: es ist serverseitig auf heute
- * beschraenkt (get_active_auftrag), damit ein rueckwirkend angelegter, noch
- * offener Auftrag nie zum vermeintlich laufenden Auftrag des Hallentablets
- * wird (das immer fuer heute erfasst). Siehe CLAUDE.md/Analyse zum Vorbild
- * in produktiv._halle1_erfassung, rapido_tisch_erfassung, Blumenband. */
+/* Datum wechseln (nur Meister/Admin). */
 async function changeDate(){
   const darf = await ensureAdmin("Datum wechseln", "");
   if(!darf) return;
   const inp = prompt("Datum eingeben (JJJJ-MM-TT):", state.datumISO);
   if(!inp) return;
   const clean = inp.trim();
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(clean)){
-    toast("Ungültiges Format – erwartet JJJJ-MM-TT", true);
+  const teile = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const probe = teile ? new Date(Number(teile[1]), Number(teile[2])-1, Number(teile[3])) : null;
+  const gueltig = !!probe && probe.getFullYear() === Number(teile[1]) &&
+    probe.getMonth() === Number(teile[2])-1 && probe.getDate() === Number(teile[3]);
+  if(!gueltig){
+    toast("Ungültiges Datum – erwartet JJJJ-MM-TT", true);
+    return;
+  }
+  if(clean > heutigesDatumISO()){
+    toast("Zukünftige Tage können nicht als Nachtrag bearbeitet werden", true);
     return;
   }
   setDatum(clean);
@@ -2958,21 +3255,11 @@ function setDatum(iso){
   state.datumISO = iso;
   const [y, m, d] = iso.split("-");
   state.datum = `${d}.${m}.${y}`;
-  // Tageswechsel: alte Auswahl verwerfen. state.auftraege wird in
-  // loadAndMerge() nur ergaenzt, nie geleert - ohne dies blieben Auftraege
-  // des vorherigen Tages in der Tab-Leiste stehen, vermischt mit denen des
-  // neu gewaehlten.
   state.auftraege = [];
   state.auftrag = null;
   state.selectedAuftragId = null;
-  // dayIsClosed wird in loadAndMerge() bewusst nur auf true gesetzt, nie
-  // zurueck (Schutz gegen eine Race Condition beim Wiederoeffnen). Das gilt
-  // nur innerhalb eines Tages - ueber einen Datumswechsel hinweg muss der
-  // Wert neu ermittelt werden, sonst bliebe ein zuvor besuchter
-  // abgeschlossener Tag faelschlich fuer alle folgenden Tage gesperrt.
   state.dayIsClosed = false;
-  // Aufsicht-PNR gehoert zum vorherigen Tag, nicht zum neu gewaehlten -
-  // sonst wandert sie beim naechsten Zurueckwechseln zu heute mit.
+  _gesamtFeldAuftragId = null;
   $("fService").value = "";
   state.aufsichtPnr = "";
   sessionStorage.removeItem("tm_aufsicht");
@@ -2983,6 +3270,37 @@ function setDatum(iso){
 
 $("btnChangeDate").onclick = changeDate;
 $("btnDatumHeute").onclick = () => setDatum(heutigesDatumISO());
+
+function queueKonfig(a){
+  return TMSync.queueAuftragKonfig({auftrag_id:a.id,
+    kultur:a.kultur, kultur_frei:a.kultur_frei || "", topfgroesse:a.topfgroesse || "", arbeit:a.arbeit || ""});
+}
+function schuetzeKonfig(a, pending){
+  if(!pending) return;
+  for(const k of ["planung_id","kultur","kultur_frei","topfgroesse","arbeit","topfform","substrat_auftr_nr","substrat_art_nr"]){
+    if(Object.prototype.hasOwnProperty.call(pending,k)) a[k] = pending[k];
+  }
+}
+function renderNkForm(){
+  const c=$('nkFormChips');c.replaceChildren();
+  for(const form of ['rund','eckig']){
+    const b=document.createElement('button');b.type='button';b.textContent=form;
+    b.className='chip topf'+(_nkForm===form?' on':'');b.setAttribute('aria-pressed',String(_nkForm===form));
+    b.onclick=()=>{_nkForm=_nkForm===form?'':form;renderNkForm();};c.appendChild(b);
+  }
+}
+function baueNkKonfiguration(){
+  renderNkForm();
+  buildModalChips("nkKulturChips", KULTUREN, _nkKultur, "kul", v=>{
+    _nkKultur=v;_nkTopf="";
+    $("nkKulturFrei").classList.toggle("show",v===KULTUR_FREITEXT);
+    $("nkTopfSection").style.display=v!==null?"block":"none";
+    buildModalChips("nkTopfChips",TOPFGROESSEN,null,"topf",tv=>{_nkTopf=tv===null?"":TOPFGROESSEN[tv-1];updateNkOk();});
+    updateNkOk();
+  },true);
+  buildModalChips("nkTopfChips",TOPFGROESSEN,_nkTopf?TOPFGROESSEN.indexOf(_nkTopf)+1:null,"topf",v=>{_nkTopf=v===null?"":TOPFGROESSEN[v-1];updateNkOk();});
+  $("nkKulturFrei").disabled=false;
+}
 
 /* ── Init ───────────────────────────────────────────────────────────────────────── */
 async function init(){
@@ -3005,9 +3323,17 @@ async function init(){
 
   try {
     const cfg = await _fetchTimeout("/api/config").then(r => r.json());
-    KULTUREN      = cfg.kulturen      || [];
+    KULTUR_FREITEXT = cfg.kultur_freitext || 23;
+    KULTUREN = [];
+    TMKulturen.optionen(cfg).forEach(({id,name})=>{ KULTUREN[id-1] = name; });
     ARBEITEN      = cfg.arbeiten      || [];
     TOPFGROESSEN  = cfg.topfgroessen  || [];
+    if(Array.isArray(cfg.pausen_fenster) && cfg.pausen_fenster.length){
+      const umgerechnet = cfg.pausen_fenster
+        .map(f => ({s: timeToMin(f[0]), e: timeToMin(f[1])}))
+        .filter(f => f.s !== null && f.e !== null && f.e > f.s);
+      if(umgerechnet.length) PAUSEN_FENSTER = umgerechnet;
+    }
   } catch(e){}
 
   await loadAndMerge();
@@ -3034,8 +3360,8 @@ async function init(){
   // Sync-Status-Anzeige dient zugleich als manueller "Jetzt synchronisieren"-
   // Button - nuetzlich als Sofort-Workaround, falls doch einmal ein
   // haengender Zustand auftritt, ohne dass ein voller Seiten-Reload noetig
-  // ist (siehe sync.js, forceSync()).
-  // Gibt es blockierte Eintraege, oeffnet der Klick stattdessen deren Liste.
+  // ist (siehe sync.js, forceSync()). Gibt es blockierte Eintraege, oeffnet
+  // der Klick stattdessen deren Liste.
   $("syncBadge").addEventListener("click", async () => {
     const blockiert = await TMSync.getBlockedOps();
     if(blockiert.length) openSyncModal(blockiert);

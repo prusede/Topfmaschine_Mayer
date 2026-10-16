@@ -13,7 +13,8 @@
    sich selbst neu planende setTimeout-Kette. Blieb dieser eine geplante
    Aufruf aus (Tab im Hintergrund, Android friert die Seite ein, eine
    Exception im Aufrufer), stand die gesamte Sync-Schleife fuer immer still -
-   nur ein manueller Reload half. Gegenmassnahmen hier, analog zu Blumenband:
+   nur ein manueller Reload half. Gegenmassnahmen hier, analog zu Blumenband
+   (und identisch auch in Topfmaschine_Mayer/app/static/sync.js uebernommen):
    - Watchdog bei visibilitychange/pageshow (erzwingt sofort einen Sync-
      Versuch, sobald die Seite wieder sichtbar wird / aus dem bfcache
      zurueckkehrt).
@@ -113,11 +114,10 @@
      Verhindert, dass ein haengender Request (instabiles WLAN) den
      Sync-Loop blockiert: ohne Timeout bleibt "syncing" dauerhaft true. */
   /* ── CSRF-Kopf der zentralen Anmeldung ──
-     Ueber diese Warteschlange laufen auch geschuetzte Schreibvorgaenge, etwa
-     das rueckwirkende Anlegen eines Auftrags. Ohne diesen Kopf verwirft die
-     Auth-Middleware die Cookie-Identitaet und antwortet trotz angemeldetem
-     Meister/Admin mit 403. Ohne Anmeldung bleibt der Wert leer und der offene
-     Scanbetrieb fuer den heutigen Tag funktioniert unveraendert weiter. */
+     Ueber diese Warteschlange laufen die Schreibvorgaenge: Mitarbeiter aendern,
+     Auftrag schliessen, Tagesabschluss. Ohne den Kopf verwirft die Middleware
+     die Cookie-Identitaet und im Audit stuende weiter nur die Rolle statt des
+     Namens. Ist niemand angemeldet, ist der Wert leer und nichts aendert sich. */
   function _csrfToken() {
     const m = document.cookie.match(/(?:^|;\s*)__Host-erf_csrf=([^;]+)/);
     return m ? decodeURIComponent(m[1]) : "";
@@ -234,6 +234,38 @@
   }
   function queueAuftragUpdate(data) {
     return queueOp({ opid: "aupd-" + data.auftrag_id, type: "auftrag_update", data });
+  }
+  // Vollstaendige Kultur-/Topf-/Planungskonfiguration getrennt von Mengen und
+  // Notizen halten. Sonst ersetzt eine Mengenbuchung die Offline-Zuordnung.
+  function queueAuftragKonfig(data) {
+    return queueOp({ opid: "akonfig-" + data.auftrag_id, type: "auftrag_update", data });
+  }
+  function queueAuftragZusatz(data) {
+    return queueOp({ opid: "azusatz-" + data.auftrag_id, type: "auftrag_update", data });
+  }
+  async function pendingKonfigurationen() {
+    await _chain;
+    const result = {};
+    const ops = await allOps();
+    ops.sort((a,b)=>(a.qms||0)-(b.qms||0) || (a.qseq||0)-(b.qseq||0));
+    for(const op of ops){
+      if(op.opid.startsWith("akonfig-") || op.opid.startsWith("azusatz-")){
+        const id=op.data.auftrag_id;result[id]=Object.assign(result[id] || {},op.data);
+      }
+      if(["auftrag_new","neue_kultur"].includes(op.type) && op.data.planung_id){
+        result[op.data.new_auftrag_id || op.data.id] = op.data;
+      }
+    }
+    return result;
+  }
+  /* Die Notiz bekommt eine eigene Vorgangskennung. Die Warteschlange haelt je
+     Kennung nur EINEN Eintrag - putOp ersetzt bei gleicher opid. Liefe die
+     Notiz unter "aupd-<id>", wuerde eine danach geaenderte Topfgroesse den
+     noch nicht gesendeten Notiztext ersetzen; offline waere er damit still
+     verloren. Der Endpunkt ist derselbe, er aktualisiert nur die
+     mitgeschickten Felder. */
+  function queueAuftragNotiz(data) {
+    return queueOp({ opid: "anot-" + data.auftrag_id, type: "auftrag_update", data });
   }
   function queueScan(data) {
     return queueOp({ opid: "scan-" + data.mz_id, type: "worker_scan", data });
@@ -377,6 +409,10 @@
           // Inhaltliche Ablehnung durch den Server oder wiederholt
           // gescheitert: Eintrag PARKEN statt loeschen. Er bleibt mit Grund
           // erhalten und sichtbar, blockiert aber die uebrigen nicht mehr.
+          // (Vorfall 21.07.2026: ein verwaister auftrag_close-Eintrag legte
+          // 10 andere Eintraege fuer Stunden lahm - damals wurde er
+          // verworfen, was den Rueckstand loeste, aber die Aenderung still
+          // vernichtete.)
           if (_ENDGUELTIG.has(status) || op.fails >= _MAX_VERSUCHE) {
             op.blocked   = true;
             op.lastError = (e && e.message) || "Unbekannter Fehler";
@@ -498,6 +534,10 @@
     newOpId,
     queueAuftragNew,
     queueAuftragUpdate,
+    queueAuftragKonfig,
+    queueAuftragZusatz,
+    pendingKonfigurationen,
+    queueAuftragNotiz,
     queueScan,
     queueWorkerUpdate,
     queueAuftragClose,

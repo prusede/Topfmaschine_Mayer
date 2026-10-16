@@ -1,5 +1,5 @@
 """
-Datenbankzugriff fuer die Topfmaschine-Mayer-Erfassung.
+Datenbankzugriff fuer die Topfmaschinen-Erfassung.
 SQLite im WAL-Modus – einfache Sicherung per .backup.
 
 Schema: auftragsbasiert (ein Datensatz je Auftrag/Kultur-Abschnitt).
@@ -7,19 +7,18 @@ Schema: auftragsbasiert (ein Datensatz je Auftrag/Kultur-Abschnitt).
 - mitarbeiter_zeiten: Personalbeteiligung mit individuellen Zeiten je Auftrag
 - audit_log: Protokoll aller Admin-Aktionen
 
-Im Unterschied zu Topfmaschine_Stolze OHNE Modbus/LOGO!-Zaehleranbindung
-(kein zaehlerstaende/logo_status-Schema, kein logo_poller-Dienst) - die
-Mayer-Maschine hat keinen Modbus-Zaehler, "Produzierte Menge" wird
-ausschliesslich manuell erfasst (gesamtstueck).
-
 DSGVO: Namen werden nicht gespeichert; nur Personalnummern.
 """
 import sqlite3
 import os
 import time
 import threading
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from contextlib import contextmanager
 from typing import Optional
+
+from app.kulturen import KULTUR_FREITEXT
 
 DB_PATH = os.environ.get("TM_DB_PATH", "/opt/topfmaschine_mayer/data/topfmaschine_mayer.db")
 
@@ -49,6 +48,22 @@ def get_conn():
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS produktionsplaene (
+    id TEXT PRIMARY KEY,
+    kultur INTEGER NOT NULL,
+    kultur_frei TEXT NOT NULL DEFAULT '',
+    topfgroesse TEXT NOT NULL,
+    arbeit TEXT NOT NULL,
+    sollmenge INTEGER NOT NULL CHECK(sollmenge > 0),
+    termin TEXT NOT NULL,
+    terminart TEXT NOT NULL DEFAULT 'bis',
+    prioritaet INTEGER NOT NULL DEFAULT 0,
+    bemerkung TEXT NOT NULL DEFAULT '',
+    archiviert INTEGER NOT NULL DEFAULT 0,
+    created_ms INTEGER NOT NULL,
+    updated_ms INTEGER NOT NULL,
+    changed_by TEXT NOT NULL DEFAULT ''
+);
 CREATE TABLE IF NOT EXISTS auftraege (
     id              TEXT PRIMARY KEY,
     auftragsnr      TEXT NOT NULL,
@@ -69,6 +84,15 @@ CREATE TABLE IF NOT EXISTS auftraege (
 CREATE INDEX IF NOT EXISTS idx_auftraege_datum  ON auftraege(datum);
 CREATE INDEX IF NOT EXISTS idx_auftraege_status ON auftraege(status);
 CREATE INDEX IF NOT EXISTS idx_auftraege_nr     ON auftraege(auftragsnr);
+
+-- Beim Archivieren die bereits errechneten Anteile festhalten, damit neue
+-- Vorgaben keine abgeschlossene archivierte Planung nachtraeglich aufbrauchen.
+CREATE TABLE IF NOT EXISTS plan_archiv_anrechnungen (
+    planung_id TEXT NOT NULL REFERENCES produktionsplaene(id) ON DELETE CASCADE,
+    auftrag_id TEXT NOT NULL REFERENCES auftraege(id) ON DELETE CASCADE,
+    menge INTEGER NOT NULL CHECK(menge >= 0),
+    PRIMARY KEY(planung_id, auftrag_id)
+);
 
 -- anzahl/sammel: Sammelzeilen fuer mehrere Personen ohne einzelne
 -- Personalnummer. Eine Einzelperson ist schlicht anzahl=1, sammel=0 - die
@@ -108,23 +132,27 @@ CREATE TABLE IF NOT EXISTS tagesabschluesse (
     closed_ms   INTEGER,
     changed_by  TEXT DEFAULT ''
 );
+
 """
 
-# anzahl/sammel: nachtraeglich ergaenzte Spalten fuer Sammelzeilen (siehe
-# SCHEMA). SQLite fuellt bei ALTER TABLE ADD COLUMN mit konstantem DEFAULT die
-# bestehenden Zeilen auf - Altdaten bleiben damit rechnerisch unveraendert
-# (anzahl=1, sammel=0). Die UPDATEs darunter sind nur eine Absicherung fuer den
-# Fall, dass eine Spalte in einer aelteren Installation ohne Default entstand.
-# closed_ms: Zeitpunkt des Auftragsabschlusses. Wird gebraucht, um eine
-# verspaetet eintreffende Aenderung (offline erfasst, VOR dem Abschluss) von
-# einer nachtraeglichen Korrektur unterscheiden zu koennen - siehe
-# main.py update_worker.
+# Bestehende Produktionsdaten durch additive Migrationen erhalten.
 _MIGRATIONS: list = [
+    "ALTER TABLE auftraege ADD COLUMN topfform TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE auftraege ADD COLUMN substrat_auftr_nr TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE auftraege ADD COLUMN substrat_art_nr TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE produktionsplaene ADD COLUMN topfform TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE produktionsplaene ADD COLUMN beginn TEXT NOT NULL DEFAULT ''",
+    # Bestehende Auftraege bleiben ohne Vorgabe; keine Mengen werden umgeschrieben.
+    "ALTER TABLE auftraege ADD COLUMN planung_id TEXT REFERENCES produktionsplaene(id)",
     "ALTER TABLE mitarbeiter_zeiten ADD COLUMN anzahl INTEGER DEFAULT 1",
     "ALTER TABLE mitarbeiter_zeiten ADD COLUMN sammel INTEGER DEFAULT 0",
+    # closed_ms: Zeitpunkt des Auftragsabschlusses. Wird gebraucht, um eine
+    # verspaetet eintreffende Aenderung (offline erfasst, VOR dem Abschluss)
+    # von einer nachtraeglichen Korrektur unterscheiden zu koennen - siehe
+    # main.py update_worker.
+    "ALTER TABLE auftraege ADD COLUMN closed_ms INTEGER",
     "UPDATE mitarbeiter_zeiten SET anzahl=1 WHERE anzahl IS NULL",
     "UPDATE mitarbeiter_zeiten SET sammel=0 WHERE sammel IS NULL",
-    "ALTER TABLE auftraege ADD COLUMN closed_ms INTEGER",
 ]
 
 
@@ -148,6 +176,12 @@ def _run_migrations(conn):
               file=sys.stderr)
     except sqlite3.OperationalError:
         pass
+    # Altvorgaben starten standardmaessig an ihrem Erstellungstag in Berlin.
+    # Bereits explizit zugeordnete Auftraege bleiben davon unberuehrt.
+    for row in conn.execute("SELECT id,created_ms FROM produktionsplaene WHERE beginn=''").fetchall():
+        beginn = datetime.fromtimestamp(row[1] / 1000, ZoneInfo("Europe/Berlin")).date().isoformat()
+        conn.execute("UPDATE produktionsplaene SET beginn=? WHERE id=?", (beginn, row[0]))
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_auftraege_planung ON auftraege(planung_id)")
     conn.commit()
 
 
@@ -159,19 +193,16 @@ def init_db():
 
 
 def get_active_auftrag(heute: str) -> Optional[dict]:
-    """Gibt den aktuell offenen Auftrag des heutigen Tages zurueck (der
-    zuletzt gestartete).
+    """Gibt den zuletzt gestarteten offenen Auftrag des heutigen Tages zurueck.
 
-    Auf datum=heute beschraenkt, seit Meister/Admin rueckwirkend Auftraege
-    fuer vergangene Tage anlegen koennen (Datumswechsel in der Erfassung).
-    Ohne diesen Filter wuerde ein rueckwirkend angelegter, noch offener
-    Auftrag hier zurueckgegeben und damit geraeteuebergreifend zum
-    vermeintlich aktuellen Auftrag - auch fuer das Hallentablet, das immer
-    fuer heute erfasst und seinen Stand ueber genau diese Funktion holt."""
+    Historische Nachtraege duerfen nie zum aktiven Auftrag der Hallentablets
+    werden. Ohne Datumsfilter wuerde ein spaeter angelegter Auftrag von gestern
+    den laufenden Auftrag von heute verdraengen."""
     with get_conn() as c:
         row = c.execute(
-            "SELECT * FROM auftraege WHERE status='offen' AND datum=? ORDER BY created_ms DESC LIMIT 1",
-            (heute,)
+            "SELECT * FROM auftraege WHERE status='offen' AND datum=? "
+            "ORDER BY created_ms DESC LIMIT 1",
+            (heute,),
         ).fetchone()
         if not row:
             return None
@@ -207,7 +238,7 @@ def _missing_fields(a: dict, require_closed: bool = False) -> list:
         missing.append("Auftragsstart")
     if a.get("kultur") is None:
         missing.append("Kultur")
-    elif int(a.get("kultur")) == 23 and not (a.get("kultur_frei") or "").strip():
+    elif int(a.get("kultur")) == KULTUR_FREITEXT and not (a.get("kultur_frei") or "").strip():
         missing.append("Freitext-Kultur")
     if not a.get("topfgroesse"):
         missing.append("Topfgroesse")
@@ -280,16 +311,19 @@ def next_auftragsnr(datum: str) -> str:
 
 
 def create_auftrag(data: dict) -> str:
+    from app import plan_db
     ts = int(time.time() * 1000)
     with get_conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        plan_db.konfiguration(data)
         c.execute("""
             INSERT INTO auftraege
               (id, auftragsnr, datum, arbeit, kultur, kultur_frei, topfgroesse,
                auftrag_start, auftrag_ende, gesamtstueck, status, sonst,
-               created_ms, updated_ms, changed_by)
+               created_ms, updated_ms, changed_by, planung_id, topfform, substrat_auftr_nr, substrat_art_nr)
             VALUES
               (:id, :auftragsnr, :datum, :arbeit, :kultur, :kultur_frei, :topfgroesse,
-               :auftrag_start, '', NULL, 'offen', :sonst, :ts, :ts, :changed_by)
+               :auftrag_start, '', NULL, 'offen', :sonst, :ts, :ts, :changed_by, :planung_id, :topfform, :substrat_auftr_nr, :substrat_art_nr)
         """, {
             "id":           data["id"],
             "auftragsnr":   data["auftragsnr"],
@@ -301,6 +335,10 @@ def create_auftrag(data: dict) -> str:
             "auftrag_start": data.get("auftrag_start", ""),
             "sonst":        data.get("sonst", ""),
             "changed_by":   data.get("changed_by", ""),
+            "planung_id":   data.get("planung_id"),
+            "topfform": data.get("topfform", ""),
+            "substrat_auftr_nr": data.get("substrat_auftr_nr", ""),
+            "substrat_art_nr": data.get("substrat_art_nr", ""),
             "ts":           ts,
         })
         c.commit()
@@ -315,6 +353,10 @@ def _insert_auftrag_with_unique_nr(c, data: dict, max_retries: int = 8) -> str:
     (zwei Anfragen gleichzeitig), wird automatisch mit der naechsten Nummer
     erneut versucht statt eine doppelte Nummer zu vergeben oder dem Nutzer
     einen rohen 500er-Fehler zu zeigen."""
+    from app import plan_db
+    if not c.in_transaction:
+        c.execute("BEGIN IMMEDIATE")
+    plan_db.konfiguration(data)
     date_compact = data["datum"].replace("-", "")
     ts = data.get("ts") or int(time.time() * 1000)
     for attempt in range(max_retries):
@@ -327,10 +369,10 @@ def _insert_auftrag_with_unique_nr(c, data: dict, max_retries: int = 8) -> str:
                 INSERT INTO auftraege
                   (id, auftragsnr, datum, arbeit, kultur, kultur_frei, topfgroesse,
                    auftrag_start, auftrag_ende, gesamtstueck, status, sonst,
-                   created_ms, updated_ms, changed_by)
+                   created_ms, updated_ms, changed_by, planung_id, topfform, substrat_auftr_nr, substrat_art_nr)
                 VALUES
                   (:id, :auftragsnr, :datum, :arbeit, :kultur, :kultur_frei, :topfgroesse,
-                   :auftrag_start, '', NULL, 'offen', :sonst, :ts, :ts, :changed_by)
+                   :auftrag_start, '', NULL, 'offen', :sonst, :ts, :ts, :changed_by, :planung_id, :topfform, :substrat_auftr_nr, :substrat_art_nr)
             """, {
                 "id":           data["id"],
                 "auftragsnr":   auftragsnr,
@@ -342,6 +384,10 @@ def _insert_auftrag_with_unique_nr(c, data: dict, max_retries: int = 8) -> str:
                 "auftrag_start": data.get("auftrag_start", ""),
                 "sonst":        data.get("sonst", ""),
                 "changed_by":   data.get("changed_by", ""),
+                "planung_id":   data.get("planung_id"),
+                "topfform": data.get("topfform", ""),
+                "substrat_auftr_nr": data.get("substrat_auftr_nr", ""),
+                "substrat_art_nr": data.get("substrat_art_nr", ""),
                 "ts":           ts,
             })
             return auftragsnr
@@ -411,8 +457,8 @@ def get_mitarbeiter_by_id(mz_id: str) -> Optional[dict]:
 
 def update_auftrag(auftrag_id: str, fields: dict):
     ts = int(time.time() * 1000)
-    allowed = {"arbeit", "kultur", "kultur_frei", "topfgroesse", "auftrag_start",
-               "auftrag_ende", "gesamtstueck", "status", "sonst", "changed_by"}
+    allowed = {"topfform", "substrat_auftr_nr", "substrat_art_nr", "arbeit", "kultur", "kultur_frei", "topfgroesse", "auftrag_start",
+               "auftrag_ende", "gesamtstueck", "status", "sonst", "changed_by", "planung_id"}
     sets = ", ".join(f"{k}=:{k}" for k in fields if k in allowed)
     if not sets:
         return
@@ -491,9 +537,9 @@ def get_auftraege_flat(datum_von: str, datum_bis: str) -> list:
         rows = c.execute("""
             SELECT
                 a.id, a.auftragsnr, a.datum, a.arbeit,
-                a.kultur, a.kultur_frei, a.topfgroesse,
+                a.kultur, a.kultur_frei, a.topfgroesse, a.topfform, a.substrat_auftr_nr, a.substrat_art_nr,
                 a.auftrag_start, a.auftrag_ende, a.gesamtstueck,
-                a.status, a.sonst,
+                a.status, a.sonst, a.planung_id,
                 mz.id    AS mz_id,
                 mz.pnr,  mz.rolle,
                 mz.start AS mz_start,

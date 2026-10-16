@@ -8,7 +8,7 @@ from app import db, main
 from conftest import kopf, session_token
 
 DATUM = "2040-01-02"
-FREITEXT = len(main.KULTUREN) + 1
+FREITEXT = main.KULTUR_FREITEXT
 
 
 @pytest.fixture
