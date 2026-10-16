@@ -27,6 +27,7 @@ gibt daher keinen logo-poller-Dienst und kein TM_LOGO_*-Environment.
    sudo nano /etc/topfmaschine_mayer.env
    Inhalt:
      TM_DB_PATH=/opt/topfmaschine_mayer/data/topfmaschine_mayer.db
+     AUTH_PUBLIC_KEY_DIR=/etc/erfassung-auth/public
 
    TM_ADMIN_PW und TM_VIEWER_PW gibt es seit der Umstellung auf die zentrale
    Anmeldung (30.07.2026) nicht mehr. Sie werden nicht gelesen und gehören,
@@ -51,13 +52,33 @@ gibt daher keinen logo-poller-Dienst und kein TM_LOGO_*-Environment.
    (NICHT die Halle-1- (8443/8444) oder Stolze-Einträge (8446) ändern!)
    sudo systemctl reload caddy
 
-7. Backup-Cron einrichten (optional)
+7. Sicherung
+   CT-Sicherung, Sicherungsziel und Aufbewahrung im Betriebsprotokoll festhalten.
+   Wiederherstellung in separatem Test-CT einschließlich SQLite integrity_check,
+   Aufträgen, Mitarbeiterzeiten und Vorgaben prüfen. Vor Updates zusätzlich
+   scripts/backup_db.sh verwenden. Ein lokaler Cron ist eine mögliche Ergänzung:
    sudo crontab -e
    Zeile hinzufügen:
    0 */2 * * * /opt/topfmaschine_mayer/scripts/backup_db.sh >> /var/log/topfmaschine_mayer_backup.log 2>&1
 
 8. Logs prüfen
    sudo journalctl -u topfmaschine-mayer -f
+
+   Updates im Git-Checkout: bash scripts/deploy.sh
+   Das Skript sichert zuerst die Datenbank, aktualisiert den Code und prüft
+   Installation, Abhängigkeiten und Syntax vor dem Dienstneustart. Bei Fehlern
+   wird abgebrochen; insbesondere nach pip-Fehlern nicht manuell weiterstarten.
+   Der installierende Benutzer braucht SSH-Lesezugriff für erfassung-auth.
+   Bei abweichenden Pfaden TM_APP_DIR und TM_DB_PATH richtig setzen.
+   Kein automatischer Datenbank-Rollback. Fehler über das Journal klären.
+   Server-Zeitzone Europe/Berlin mit timedatectl kontrollieren.
+   Danach Browserseiten neu laden.
+
+   Der heutige Scanbetrieb bleibt offen. Historische Lesezugriffe verlangen eine
+   Leserolle, Änderungen nach Abschluss mindestens Meister. Nicht belegbare
+   nachträgliche Offline-Korrekturen werden in der Outbox zur Freigabe geparkt;
+   ein Client-Zeitstempel hebt die Sperre nicht auf. Identische Retries bleiben
+   erfolgreich. Meisterrechte für Tag wieder öffnen bleiben erhalten.
 
 8a. Tests
    cd /opt/topfmaschine_mayer

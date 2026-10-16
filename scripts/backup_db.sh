@@ -10,6 +10,11 @@ KEEP_DAYS=30
 TS=$(date +"%Y%m%d_%H%M%S")
 DEST="${BACKUP_DIR}/topfmaschine_mayer_${TS}.db"
 
+if [ ! -f "${DB_SRC}" ]; then
+  echo "[${TS}] FEHLER: Datenbank fehlt: ${DB_SRC}; keine leere Ersatzdatenbank anlegen." >&2
+  exit 3
+fi
+
 mkdir -p "${BACKUP_DIR}"
 
 # SQLite Online-Backup (sicher während laufendem Betrieb)

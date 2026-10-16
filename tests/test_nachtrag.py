@@ -54,7 +54,7 @@ def _historischen_auftrag(client, *, mitarbeiter: bool = True) -> dict:
 
 
 def _close_token(client, aid: str) -> str:
-    antwort = client.get(f"/api/auftrag/{aid}")
+    antwort = client.get(f"/api/auftrag/{aid}", headers=_meister())
     assert antwort.status_code == 200, antwort.text
     return antwort.json()["close_token"]
 

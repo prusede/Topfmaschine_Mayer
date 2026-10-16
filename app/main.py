@@ -274,6 +274,8 @@ def validate_date(val: str, field: str = "Datum") -> str:
     """Muss ein gültiges ISO-Datum (JJJJ-MM-TT) sein."""
     v = str(val or "").strip()
     try:
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+            raise ValueError()
         date.fromisoformat(v)
     except ValueError:
         raise HTTPException(400, f"{field} muss ein gültiges Datum im Format JJJJ-MM-TT sein")
@@ -563,42 +565,6 @@ def _day_is_closed(datum: str) -> bool:
 
 # Toleranz fuer den Uhrenversatz zwischen Tablet und Server. Die Zeitstempel
 # der Aenderung stammen vom Geraet, der Abschlusszeitpunkt vom Server.
-_NACHZUEGLER_TOLERANZ_MS = 5 * 60 * 1000
-
-
-def _sperr_zeitpunkt(auftrag: dict) -> Optional[int]:
-    """Fruehester Zeitpunkt, ab dem der Auftrag gesperrt ist - Auftrags- oder
-    Tagesabschluss, je nachdem was zuerst kam. None, wenn keine Sperre greift
-    oder der Zeitpunkt nicht bekannt ist (Altdaten, per Admin gesetzter
-    Status) - dann bleibt es bei der strengen Ablehnung."""
-    kandidaten = []
-    if auftrag.get("status") == "abgeschlossen" and auftrag.get("closed_ms"):
-        kandidaten.append(int(auftrag["closed_ms"]))
-    tag = db.get_day_close(auftrag.get("datum", ""))
-    if tag.get("closed") and tag.get("closed_ms"):
-        kandidaten.append(int(tag["closed_ms"]))
-    return min(kandidaten) if kandidaten else None
-
-
-def _ist_nachzuegler(auftrag: Optional[dict], updated_ms: Optional[int]) -> bool:
-    """Wurde die Aenderung erfasst, BEVOR der Auftrag/Tag abgeschlossen wurde?
-
-    Hintergrund: Die App arbeitet offlinefaehig ueber eine Warteschlange. Eine
-    Zeitkorrektur, die die Aufsicht kurz vor dem Abschluss vorgenommen hat,
-    kann den Server erst nach dem Abschluss erreichen - etwa weil der
-    Abschluss von einem anderen Geraet kam oder das Tablet zwischenzeitlich
-    offline war. Solche Nachzuegler abzulehnen bedeutete bisher, dass die
-    Aenderung verloren ging UND die gesamte Warteschlange blockierte. Eine
-    echte nachtraegliche Korrektur (Zeitstempel nach dem Abschluss) bleibt
-    weiterhin dem Admin-Modus vorbehalten."""
-    if not auftrag or not updated_ms:
-        return False
-    grenze = _sperr_zeitpunkt(auftrag)
-    if grenze is None:
-        return False
-    return int(updated_ms) <= grenze + _NACHZUEGLER_TOLERANZ_MS
-
-
 def _auftragszeiten_nachfuehren(auftrag_id: str) -> None:
     """Auftragsstart und -ende ergeben sich aus den Mitarbeiterzeiten.
 
@@ -791,7 +757,7 @@ def update_auftrag(body: AuftragUpdateIn):
     if body.topfgroesse is not None:
         fields["topfgroesse"] = validate_topfgroesse(body.topfgroesse)
     if body.auftrag_start is not None:
-        fields["auftrag_start"] = body.auftrag_start
+        fields["auftrag_start"] = validate_time(body.auftrag_start, "Auftragsstart")
     if body.sonst is not None:
         fields["sonst"] = body.sonst
     if body.gesamtstueck is not None:
@@ -823,24 +789,29 @@ def scan_worker(body: ScanIn):
     if not auftrag:
         raise HTTPException(404, "Auftrag nicht gefunden")
     _require_write_for_date(auftrag.get("datum", ""))
-    if _day_is_closed(auftrag.get("datum", "")):
-        raise HTTPException(400, "Tag ist bereits abgeschlossen")
 
-    ts = body.updated_ms or int(time.time() * 1000)
-    start = body.start or _nowHM()
-    db.upsert_mitarbeiter({
-        "id":         body.mz_id,
-        "auftrag_id": body.auftrag_id,
-        "pnr":        pnr,
-        "rolle":      body.rolle,
-        "start":      start,
-        "ende":       "",
-        "pause":      0,
-        "anzahl":     anzahl,
-        "sammel":     bool(body.sammel),
-        "created_ms": ts,
-        "updated_ms": ts,
-    })
+    ts = int(time.time() * 1000)
+    start = validate_time(body.start, "Startzeit") or _nowHM()
+    try:
+        neu = db.upsert_mitarbeiter({
+            "id":         body.mz_id,
+            "auftrag_id": body.auftrag_id,
+            "pnr":        pnr,
+            "rolle":      body.rolle,
+            "start":      start,
+            "ende":       "",
+            "pause":      0,
+            "anzahl":     anzahl,
+            "sammel":     bool(body.sammel),
+            "created_ms": ts,
+            "updated_ms": ts,
+        }, nur_neu=True)
+    except db.MitarbeiterKonflikt as exc:
+        raise HTTPException(409, str(exc))
+    except db.MitarbeiterGesperrt as exc:
+        raise HTTPException(400, str(exc))
+    if not neu:
+        return {"ok": True, "pnr": pnr, "rolle": body.rolle, "anzahl": anzahl, "sammel": bool(body.sammel)}
     _auftragszeiten_nachfuehren(body.auftrag_id)
     if body.sammel:
         db.log_audit("sammel_add", _actor(), body.auftrag_id, f"anzahl={anzahl},start={start}")
@@ -852,54 +823,41 @@ def scan_worker(body: ScanIn):
 
 @app.post("/api/worker/update")
 def update_worker(body: WorkerUpdateIn):
-    """Aktualisiert Zeiten/Pause/Rolle eines Mitarbeiters. Sobald der
-    zugehoerige Auftrag abgeschlossen oder der Tag abgeschlossen ist, ist
-    eine Aenderung nur noch mit gueltigem Admin-Passwort moeglich - vorher
-    konnte jeder Client Mitarbeiterdaten jederzeit ueberschreiben, auch nach
-    Abschluss."""
+    """Offene Zeiten bearbeiten; gesperrte Aenderungen brauchen eine Schreibrolle.
+
+    Ein frei waehlbarer Client-Zeitstempel belegt keinen Offline-Erfassungszeitpunkt.
+    Identische Wiederholungen sind auch nach Abschluss erfolgreich; neue Korrekturen
+    bleiben in der bestehenden Outbox zur Freigabe erhalten.
+    """
     mz = db.get_mitarbeiter_by_id(body.mz_id)
     if mz is None:
         raise HTTPException(404, "Mitarbeiter-Eintrag nicht gefunden")
+    if body.auftrag_id and body.auftrag_id != mz["auftrag_id"]:
+        raise HTTPException(409, "Mitarbeiter-Eintrag gehört zu einem anderen Auftrag")
     auftrag = db.get_auftrag_by_id(mz["auftrag_id"])
-    if auftrag:
-        _require_write_for_date(auftrag.get("datum", ""), body.pw)
-    locked = bool(auftrag) and (
-        auftrag.get("status") == "abgeschlossen" or _day_is_closed(auftrag.get("datum", ""))
-    )
-    nachzuegler = False
-    if locked and not _admin_ok(body.pw):
-        if _ist_nachzuegler(auftrag, body.updated_ms):
-            nachzuegler = True
-        else:
-            raise HTTPException(400, "Auftrag/Tag abgeschlossen – Änderung nur im Admin-Modus")
-
-    ts = body.updated_ms or int(time.time() * 1000)
-    fields: dict = {}
-    if body.start  is not None: fields["start"]  = validate_time(body.start, "start")
-    if body.ende   is not None: fields["ende"]   = validate_time(body.ende, "ende")
-    if body.pause  is not None: fields["pause"]  = validate_pause(
-        body.pause, fields.get("start", mz.get("start", "")), fields.get("ende", mz.get("ende", "")))
-    if body.rolle  is not None: fields["rolle"]  = validate_rolle(body.rolle)
+    if not auftrag:
+        raise HTTPException(404, "Auftrag nicht gefunden")
+    _require_write_for_date(auftrag.get("datum", ""), body.pw)
+    fields = {}
+    if body.start is not None: fields["start"] = validate_time(body.start, "Startzeit")
+    if body.ende is not None: fields["ende"] = validate_time(body.ende, "Endzeit")
+    if body.pause is not None:
+        fields["pause"] = validate_pause(body.pause, fields.get("start", mz.get("start", "")), fields.get("ende", mz.get("ende", "")))
+    if body.rolle is not None: fields["rolle"] = validate_rolle(body.rolle)
     if body.anzahl is not None:
-        # Die Personenzahl ist nur bei Sammelzeilen ein echtes Feld - bei einer
-        # Einzelperson waere sie immer 1 und ein abweichender Wert wuerde die
-        # Stundensumme still verfaelschen.
         if not mz.get("sammel"):
             raise HTTPException(400, "Personenanzahl ist nur bei Sammelzeilen änderbar")
         fields["anzahl"] = validate_anzahl(body.anzahl)
     if not fields:
         return {"ok": True}
-    sets = ", ".join(f"{k}=:{k}" for k in fields)
-    fields["mz_id"] = body.mz_id
-    fields["ts"]    = ts
-    with db.get_conn() as c:
-        c.execute(f"UPDATE mitarbeiter_zeiten SET {sets}, updated_ms=:ts WHERE id=:mz_id",
-                  fields)
-        c.commit()
-    _auftragszeiten_nachfuehren(mz["auftrag_id"])
-    db.log_audit("worker_update", _actor(body.pw), body.mz_id,
-                 f"auftrag={mz['auftrag_id']},locked={locked},"
-                 f"nachzuegler={nachzuegler},fields={list(fields.keys())}")
+    try:
+        geaendert = db.update_mitarbeiter_sicher(body.mz_id, fields, _admin_ok(body.pw))
+    except db.MitarbeiterGesperrt as exc:
+        raise HTTPException(400, str(exc))
+    if geaendert:
+        _auftragszeiten_nachfuehren(mz["auftrag_id"])
+        db.log_audit("worker_update", _actor(body.pw), body.mz_id,
+                     f"auftrag={mz['auftrag_id']},fields={list(fields)}")
     return {"ok": True}
 
 
@@ -1067,6 +1025,12 @@ def list_auftraege(
     von: str = Query(default_factory=lambda: date.today().isoformat()),
     bis: str = Query(default_factory=lambda: date.today().isoformat()),
 ):
+    validate_date(von, "Von")
+    validate_date(bis, "Bis")
+    if von > bis:
+        raise HTTPException(400, "Von darf nicht nach Bis liegen")
+    if von != date.today().isoformat() or bis != date.today().isoformat():
+        check_viewer()
     return db.list_auftraege(von, bis)
 
 
@@ -1075,6 +1039,8 @@ def get_auftrag(auftrag_id: str):
     a = db.get_auftrag_by_id(auftrag_id)
     if not a:
         raise HTTPException(404, "Auftrag nicht gefunden")
+    if not _is_today(a.get("datum", "")):
+        check_viewer()
     a["close_token"] = _auftrag_token(a["id"])
     return a
 
@@ -1103,6 +1069,9 @@ def day_close(body: DayCloseIn):
 
 @app.get("/api/day/status")
 def day_status(datum: str = Query(default_factory=lambda: date.today().isoformat())):
+    validate_date(datum, "Datum")
+    if not _is_today(datum):
+        check_viewer()
     status = db.get_day_close(datum)
     status["problems"] = _day_close_problems(datum)
     status["close_token"] = _day_token(datum)
@@ -1110,7 +1079,8 @@ def day_status(datum: str = Query(default_factory=lambda: date.today().isoformat
 @app.post("/api/admin/day/reopen")
 def admin_day_reopen(body: DayCloseIn):
     check_admin(body.pw)
-    db.reopen_day(body.datum, "admin")
+    validate_date(body.datum, "Datum")
+    db.reopen_day(body.datum, _actor())
     db.log_audit("day_reopen", _actor(), body.datum, "Tag wieder geöffnet")
     return {"ok": True, "datum": body.datum}
 
@@ -1144,11 +1114,17 @@ def admin_edit_auftrag(body: AuftragEditIn):
     if body.arbeit       is not None: fields["arbeit"]       = body.arbeit
     if "kultur" in body.model_fields_set: fields["kultur"] = validate_kultur(body.kultur)
     if body.kultur_frei  is not None: fields["kultur_frei"]  = body.kultur_frei
-    if body.topfgroesse  is not None: fields["topfgroesse"]  = body.topfgroesse
-    if body.auftrag_start is not None: fields["auftrag_start"] = body.auftrag_start
-    if body.auftrag_ende  is not None: fields["auftrag_ende"]  = body.auftrag_ende
-    if body.gesamtstueck  is not None: fields["gesamtstueck"]  = body.gesamtstueck
-    if body.status        is not None: fields["status"]         = body.status
+    if body.topfgroesse  is not None: fields["topfgroesse"]  = validate_topfgroesse(body.topfgroesse)
+    if body.auftrag_start is not None: fields["auftrag_start"] = validate_time(body.auftrag_start, "Auftragsstart")
+    if body.auftrag_ende  is not None: fields["auftrag_ende"]  = validate_time(body.auftrag_ende, "Auftragsende")
+    if body.gesamtstueck is not None:
+        if body.gesamtstueck < 0:
+            raise HTTPException(400, "Gesamtstueckzahl muss >= 0 sein")
+        fields["gesamtstueck"] = body.gesamtstueck
+    if body.status is not None:
+        if body.status not in ("offen", "abgeschlossen"):
+            raise HTTPException(400, "Status muss offen oder abgeschlossen sein")
+        fields["status"] = body.status
     if body.sonst         is not None: fields["sonst"]          = body.sonst
     plan_db.update_config(body.auftrag_id, fields, _actor(body.pw))
     # Die Auftragszeit folgt auch hier den Personalzeiten. Eine von Hand
@@ -1358,6 +1334,10 @@ def _build_auftrag_summary(rows: list) -> list:
 @app.post("/api/auswertung/summary")
 def auswertung_summary(req: AuswertungRequest):
     check_viewer(req.pw)
+    validate_date(req.von, "Von")
+    validate_date(req.bis, "Bis")
+    if req.von > req.bis:
+        raise HTTPException(400, "Von darf nicht nach Bis liegen")
     rows   = db.get_auftraege_flat(req.von, req.bis)
     return _build_auftrag_summary(rows)
 
@@ -1365,6 +1345,10 @@ def auswertung_summary(req: AuswertungRequest):
 @app.post("/api/auswertung/kulturen")
 def auswertung_kulturen(req: AuswertungRequest):
     check_viewer(req.pw)
+    validate_date(req.von, "Von")
+    validate_date(req.bis, "Bis")
+    if req.von > req.bis:
+        raise HTTPException(400, "Von darf nicht nach Bis liegen")
     rows = db.get_auftraege_flat(req.von, req.bis)
     summaries = _build_auftrag_summary(rows)
 
@@ -1390,6 +1374,10 @@ def auswertung_kulturen(req: AuswertungRequest):
 @app.post("/api/export.csv")
 def export_csv(req: AuswertungRequest):
     check_viewer(req.pw)
+    validate_date(req.von, "Von")
+    validate_date(req.bis, "Bis")
+    if req.von > req.bis:
+        raise HTTPException(400, "Von darf nicht nach Bis liegen")
     rows      = db.get_auftraege_flat(req.von, req.bis)
     summaries = _build_auftrag_summary(rows)
     anrechnungen = {}

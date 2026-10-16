@@ -44,7 +44,7 @@ def test_kulturwechsel_wird_an_abgeschlossenem_tag_abgewiesen(client):
         headers=_meister(),
     )
     assert angelegt.status_code == 200, angelegt.text
-    token = client.get(f"/api/auftrag/{auftrag_id}").json()["close_token"]
+    token = client.get(f"/api/auftrag/{auftrag_id}", headers=_meister()).json()["close_token"]
     main.db.close_day(datum, "test")
 
     antwort = client.post(

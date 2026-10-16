@@ -82,6 +82,20 @@ Offline-Reload, Plananrechnung, Navigation und Auswertungsfilter im Browser test
 
 ## Deployment
 
+## Abnahme-Haertung 16.10.2026
+
+Gemeinsame Korrekturen mit Stolze: historische Lesezugriffe verlangen Auswerter;
+heutiger Scanbetrieb bleibt offen. Scans duerfen vorhandene Zeilen weder einem
+fremden Auftrag zuordnen noch deren Zeiten zuruecksetzen. Sperrpruefung und
+Schreiben liegen in einer Transaktion. Identische Wiederholungen bleiben erlaubt.
+updated_ms vom Browser hebt keine Abschlusssperre auf. Nicht angewandte Updates
+nach Abschluss bleiben in der Outbox geparkt, bis ein Meister sie freigibt;
+bereits angewandte identische Updates werden quittiert. Keine Daten verwerfen.
+Meisterrechte bleiben bestehen. Eingaben/Datumsbereiche sind einheitlich geprueft,
+Tagesstatus protokolliert den Bearbeiter, echte Migrationsfehler brechen den Start ab.
+scripts/deploy.sh bricht bei Backup-/Installations-/Prueffehlern ab. Kein Deployment
+oder Serverbackup wurde durch diese Codeaenderung ausgefuehrt.
+
 Ein Dienst, kein Poller:
 
 ```bash

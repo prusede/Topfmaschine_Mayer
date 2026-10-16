@@ -10,6 +10,7 @@ Schema: auftragsbasiert (ein Datensatz je Auftrag/Kultur-Abschnitt).
 DSGVO: Namen werden nicht gespeichert; nur Personalnummern.
 """
 import sqlite3
+import logging
 import os
 import time
 import threading
@@ -160,8 +161,11 @@ def _run_migrations(conn):
     for sql in _MIGRATIONS:
         try:
             conn.execute(sql)
-        except sqlite3.OperationalError:
-            pass
+        except sqlite3.OperationalError as exc:
+            # ADD COLUMN darf beim zweiten Start bereits vorhanden sein.
+            if "duplicate column name:" not in str(exc).lower() or not sql.startswith("ALTER TABLE "):
+                logging.exception("Datenbankmigration fehlgeschlagen: %s", sql)
+                raise
     # Eigene Behandlung fuer den UNIQUE-Index: schlaegt er wegen bereits
     # vorhandener doppelter Auftragsnummern fehl (IntegrityError statt
     # OperationalError), darf das den Start nicht verhindern - nur einmalig
@@ -175,7 +179,8 @@ def _run_migrations(conn):
               "UNIQUE-Index auf auftraege.auftragsnr konnte nicht angelegt werden.",
               file=sys.stderr)
     except sqlite3.OperationalError:
-        pass
+        logging.exception("Index der Auftragsnummern konnte nicht angelegt werden")
+        raise
     # Altvorgaben starten standardmaessig an ihrem Erstellungstag in Berlin.
     # Bereits explizit zugeordnete Auftraege bleiben davon unberuehrt.
     for row in conn.execute("SELECT id,created_ms FROM produktionsplaene WHERE beginn=''").fetchall():
@@ -483,10 +488,30 @@ def close_auftrag(auftrag_id: str, auftrag_ende: str, gesamtstueck: int,
         c.commit()
 
 
-def upsert_mitarbeiter(data: dict):
+class MitarbeiterKonflikt(ValueError):
+    pass
+
+
+class MitarbeiterGesperrt(ValueError):
+    pass
+
+
+def upsert_mitarbeiter(data: dict, nur_neu: bool = False):
     """Idempotentes Insert/Update eines Mitarbeiter-Zeiteintrags."""
     ts = int(time.time() * 1000)
     with get_conn() as c:
+        if nur_neu:
+            c.execute("BEGIN IMMEDIATE")
+            alt = c.execute("SELECT * FROM mitarbeiter_zeiten WHERE id=?", (data["id"],)).fetchone()
+            if alt:
+                if alt["auftrag_id"] != data["auftrag_id"] or str(alt["pnr"] or "") != str(data["pnr"] or "") or bool(alt["sammel"]) != bool(data.get("sammel")):
+                    raise MitarbeiterKonflikt("Mitarbeiter-Kennung ist bereits anderweitig vergeben")
+                c.commit()
+                return False
+            a = c.execute("SELECT status,datum FROM auftraege WHERE id=?", (data["auftrag_id"],)).fetchone()
+            tag = c.execute("SELECT closed FROM tagesabschluesse WHERE datum=?", (a["datum"],)).fetchone() if a else None
+            if not a or a["status"] != "offen" or (tag and tag["closed"]):
+                raise MitarbeiterGesperrt("Auftrag/Tag abgeschlossen – Änderung nur im Admin-Modus")
         c.execute("""
             INSERT INTO mitarbeiter_zeiten
               (id, auftrag_id, pnr, rolle, start, ende, pause, anzahl, sammel,
@@ -513,6 +538,7 @@ def upsert_mitarbeiter(data: dict):
             "updated_ms": data.get("updated_ms", ts),
         })
         c.commit()
+    return True
 
 
 def set_all_active_workers_ende(auftrag_id: str, ende: str):
@@ -610,3 +636,27 @@ def get_day_close(datum: str) -> dict:
         return dict(row) if row else {"datum": datum, "closed": 0, "closed_ms": None, "changed_by": ""}
 
 
+
+
+def update_mitarbeiter_sicher(mz_id: str, fields: dict, berechtigt: bool):
+    # Sperrpruefung und Schreiben sind eine Transaktion: ein paralleler Abschluss
+    # darf zwischen Pruefung und UPDATE keine unbemerkte Aenderung zulassen.
+    allowed = {"start", "ende", "pause", "rolle", "anzahl"}
+    if not fields or not set(fields) <= allowed:
+        raise ValueError("Ungueltige Mitarbeiterfelder")
+    with get_conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        mz = c.execute("SELECT * FROM mitarbeiter_zeiten WHERE id=?", (mz_id,)).fetchone()
+        a = c.execute("SELECT status,datum FROM auftraege WHERE id=?", (mz["auftrag_id"],)).fetchone() if mz else None
+        if not mz or not a:
+            raise MitarbeiterGesperrt("Mitarbeiter-Eintrag oder Auftrag nicht gefunden")
+        if all(mz[k] == v for k, v in fields.items()):
+            c.commit()
+            return False
+        tag = c.execute("SELECT closed FROM tagesabschluesse WHERE datum=?", (a["datum"],)).fetchone()
+        if not berechtigt and (a["status"] != "offen" or (tag and tag["closed"])):
+            raise MitarbeiterGesperrt("Auftrag/Tag abgeschlossen – Änderung nur im Admin-Modus")
+        c.execute("UPDATE mitarbeiter_zeiten SET " + ",".join(f"{k}=?" for k in fields) + ",updated_ms=? WHERE id=?",
+                  [*fields.values(), int(time.time() * 1000), mz_id])
+        c.commit()
+        return True
