@@ -10,7 +10,7 @@ function seite(){
   el.auswertungPlanung={style:{}};
   const c=vm.createContext({$:id=>el[id],_auswertungAnfrage:0,_planBerichtAnfrage:0,_letzteSummaries:[],
     _fetchTimeout:(url,opts)=>new Promise(resolve=>req.push({url,body:JSON.parse(opts.body),resolve})),
-    _farbenSetzen(){},renderZaehlerKPIs(){},renderZaehlerTage(){},
+    _farbenSetzen(){},
     renderAuswahl(){anzeigen.push(c._letzteSummaries);},ladePlanbericht:async()=>{},
   });
   for(const name of ['zeitraumGueltig','zeigeAuswertungsansicht'])vm.runInContext(source.match(new RegExp('function '+name+'\\([^]*?\\n}'))[0],c);
@@ -26,11 +26,14 @@ test('Ungueltige oder unvollstaendige Datumsbereiche starten keinen Abruf',async
 test('Spaet eintreffender alter Abruf ueberschreibt neuere Auswahl nicht',async()=>{
   const s=seite();const alt=s.c.loadData();assert.match(s.el.datenLadeStatus.textContent,/Wird geladen/);
   s.el.fVon.value='2026-10-16';const neu=s.c.loadData();
+  // Je Abruf genau eine Anfrage (Auftraege); kein Zaehlerabruf, Stundenwerte laedt jeder Tag selbst.
+  assert.equal(s.req.length,2);assert.ok(s.req.every(r=>r.url.endsWith('/summary')));
   for(const r of s.req.slice(1))r.resolve({ok:true,json:async()=>r.url.endsWith('/summary')?[{id:'neu'}]:[]});
   await neu;
   for(const r of s.req.slice(0,1))r.resolve({ok:true,json:async()=>r.url.endsWith('/summary')?[{id:'alt'}]:[]});
   await alt;assert.equal(s.anzeigen.length,1);assert.equal(s.anzeigen[0][0].id,'neu');
-  assert.equal(s.el.datenLadeStatus.textContent,'');
+  // Wie Halle 1: nach erfolgreichem Laden steht der Datenstand, nicht mehr ein leerer Status.
+  assert.match(s.el.datenLadeStatus.textContent,/^Datenstand: /);
 });
 test('Produktion offen laedt ausschliesslich den Planbericht',async()=>{
   const s=seite();let pl=0;s.c.ladePlanbericht=async()=>pl++;s.el.fRange.value='produktion_offen';

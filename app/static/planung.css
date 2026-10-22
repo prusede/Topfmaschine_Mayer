@@ -3,8 +3,10 @@
 .plan-seite{margin:0;background:#f7f5ef;}
 .plan-kopf{background:#123c4d;color:#fff;padding:18px 24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
 .plan-kopf strong{font-size:1.2rem;}
-.plan-kopf nav{display:flex;gap:20px;margin-left:auto;}
-.plan-kopf a{color:#bce3bb;}
+.plan-kopf nav{display:flex;gap:10px;margin-left:auto;}
+/* Wie der Knopf "Abmelden" der Auswertung: hell durchscheinend auf dem dunklen Kopf. */
+.plan-kopf nav a{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:6px 12px;font-size:.82rem;font-weight:600;text-decoration:none;}
+.plan-kopf nav a:hover,.plan-kopf nav a:focus-visible{background:rgba(255,255,255,.24);}
 .plan-main{max-width:1250px;margin:0 auto;padding:24px;}
 .plan-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:22px;}
 .plan-intro h1{margin:0 0 8px;font-size:1.8rem;color:#123c4d;}

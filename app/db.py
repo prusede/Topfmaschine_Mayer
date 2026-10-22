@@ -599,6 +599,14 @@ def get_audit_log(limit: int = 200) -> list:
         return [dict(r) for r in rows]
 
 
+def auswertungs_jahre():
+    """Jahre mit Auftraegen, fuer die Jahresauswahl der Auswertung."""
+    with get_conn() as c:
+        return [int(r[0]) for r in c.execute(
+            "SELECT DISTINCT substr(datum,1,4) FROM auftraege ORDER BY 1 DESC")
+            if str(r[0]).isdigit()]
+
+
 def delete_auftrag(auftrag_id: str):
     """Löscht einen Auftrag und alle zugehörigen Mitarbeiter-Zeiten vollständig (CASCADE)."""
     with get_conn() as c:

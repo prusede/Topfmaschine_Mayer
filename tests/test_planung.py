@@ -32,8 +32,8 @@ def payload():
 
 
 def test_topfformen_werden_getrennt_automatisch_angerechnet(client, meister, payload):
-    rund = speichern(client, meister, dict(payload, topfform="rund", topfgroesse="9cm"))
-    eckig = speichern(client, meister, dict(payload, id=str(uuid.uuid4()), topfform="eckig", topfgroesse="9cm"))
+    rund = speichern(client, meister, dict(payload, beginn="2026-10-16", topfform="rund", topfgroesse="9cm"))
+    eckig = speichern(client, meister, dict(payload, beginn="2026-10-16", id=str(uuid.uuid4()), topfform="eckig", topfgroesse="9cm"))
     for form, menge in (("rund", 1200), ("eckig", 3400), ("", 999)):
         aid = auftrag(None, menge=menge)
         db.update_auftrag(aid, {"topfgroesse": "9er", "topfform": form})

@@ -75,6 +75,7 @@ SCHREIBEN = [
 # Dem Admin vorbehalten: das Audit-Protokoll. Es ist das Mittel, mit dem
 # Korrekturen kontrolliert werden, und gehoert nicht in dieselbe Hand.
 NUR_ADMIN = [
+    ("/api/auswertung/auftrag/loeschen", {"auftrag_id": "x"}),
     ("/api/audit", {"pw": "", "limit": 10}),
 ]
 

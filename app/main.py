@@ -414,6 +414,10 @@ class WorkerDeleteIn(BaseModel):
     auftrag_id: str = ""
 
 
+class AuswertungAuftragLoeschenIn(BaseModel):
+    auftrag_id: str
+
+
 class AuftragDeleteIn(BaseModel):
     # Bleibt fuer Bestandsclients erhalten, wird aber nicht mehr ausgewertet.
     pw: str = ""
@@ -489,6 +493,11 @@ class AuswertungRequest(BaseModel):
     von: str
     bis: str
     kultur_id: Optional[int] = Field(default=None, ge=1, le=max(KULTUREN))
+    # Wie Stolze (22.10.2026): Topfgroesse/-form filtern auftragsbezogene Ansichten und
+    # beide Exporte; ansicht="mengen" liefert eine Zeile je Auftrag.
+    topfgroesse: Optional[str] = None
+    topfform: Optional[Literal["rund", "eckig"]] = None
+    ansicht: Literal["mitarbeiter", "mengen"] = "mitarbeiter"
 
 
 class AuditRequest(BaseModel):
@@ -629,7 +638,9 @@ def auswertung_page(request: Request):
     redirect = auth.guard_page(request, AUTH_CFG)   # verlangt mindestens auswerter
     if redirect:
         return redirect
-    return FileResponse(os.path.join(STATIC, "auswertung.html"))
+    # no-cache: Seite und Skripte muessen zusammenpassen (in Stolze lief am 20.10.2026
+    # eine neue Seite mit einer zwischengespeicherten alten produktionsbericht.js).
+    return FileResponse(os.path.join(STATIC, "auswertung.html"), headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/kulturauswahl.js")
@@ -887,6 +898,36 @@ def delete_auftrag_endpoint(body: AuftragDeleteIn):
     db.delete_auftrag(body.auftrag_id)
     db.log_audit("auftrag_delete", _actor(body.pw), body.auftrag_id,
                  f"auftragsnr={auftragsnr},datum={auftrag.get('datum','?')}")
+    return {"ok": True}
+
+
+@app.post("/api/auswertung/auftrag/loeschen")
+def auswertung_auftrag_loeschen(body: AuswertungAuftragLoeschenIn):
+    """Auftrag aus der Auswertung loeschen -- nur Admin, nur vergangene Tage.
+
+    Wie Stolze und Halle 1. Der laufende Tag bleibt ausgenommen: dort haelt das
+    Tablet den Auftrag noch in seiner Warteschlange und legt ihn beim naechsten
+    Abgleich wieder an. Heute wird in der Erfassung geloescht.
+
+    /api/admin/auftrag/delete bleibt fuer die Erfassung unveraendert (meister).
+    Mitarbeiterzeiten und archivierte Plananrechnung folgen per ON DELETE CASCADE.
+    Das Protokoll haelt den vollstaendigen Inhalt fest."""
+    check_admin()
+    _nur_admin()
+    auftrag = db.get_auftrag_by_id(body.auftrag_id)
+    if not auftrag:
+        raise HTTPException(404, "Auftrag nicht gefunden – bitte Auswertung neu laden.")
+    if auftrag["datum"] >= date.today().isoformat():
+        raise HTTPException(409, "Aufträge des laufenden Tages bitte in der Erfassung löschen.")
+    db.delete_auftrag(body.auftrag_id)
+    felder = ("auftragsnr", "datum", "kultur", "kultur_frei", "topfgroesse", "topfform",
+              "auftrag_start", "auftrag_ende", "gesamtstueck", "status", "planung_id",
+              "substrat_auftr_nr", "substrat_art_nr", "sonst")
+    zeilen = ";".join(f"{m.get('pnr')}/{m.get('rolle')}/{m.get('start')}-{m.get('ende')}/p{m.get('pause')}"
+                      f"{'/x' + str(m.get('anzahl')) if m.get('sammel') else ''}"
+                      for m in auftrag.get("mitarbeiter") or [])
+    detail = ",".join(f"{k}={auftrag.get(k)}" for k in felder) + f",mitarbeiter=[{zeilen}]"
+    db.log_audit("auswertung_auftrag_delete", _actor(), body.auftrag_id, detail)
     return {"ok": True}
 
 
@@ -1331,6 +1372,33 @@ def _build_auftrag_summary(rows: list) -> list:
     return result
 
 
+def _filter_auftrag_summary(rows, req):
+    def topf(value):
+        return str(value or "").strip().lower().replace(" ", "").replace("9er", "9cm").replace("11er", "11cm")
+    return [r for r in rows
+            if (req.kultur_id is None or r["kultur_id"] == req.kultur_id)
+            and (not req.topfgroesse or topf(r["topfgroesse"]) == topf(req.topfgroesse))
+            and (not req.topfform or r["topfform"] == req.topfform)]
+
+
+@app.get("/produktionsbericht.js")
+def produktionsbericht_script():
+    return FileResponse(os.path.join(STATIC, "produktionsbericht.js"), media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/produktion-uebersicht.js")
+def produktions_uebersicht_script():
+    return FileResponse(os.path.join(STATIC, "produktion-uebersicht.js"), media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache"})
+
+
+@app.post("/api/auswertung/jahre")
+def auswertungs_jahre():
+    check_viewer("")
+    return db.auswertungs_jahre()
+
+
 @app.post("/api/auswertung/summary")
 def auswertung_summary(req: AuswertungRequest):
     check_viewer(req.pw)
@@ -1339,7 +1407,7 @@ def auswertung_summary(req: AuswertungRequest):
     if req.von > req.bis:
         raise HTTPException(400, "Von darf nicht nach Bis liegen")
     rows   = db.get_auftraege_flat(req.von, req.bis)
-    return _build_auftrag_summary(rows)
+    return _filter_auftrag_summary(_build_auftrag_summary(rows), req)
 
 
 @app.post("/api/auswertung/kulturen")
@@ -1350,7 +1418,7 @@ def auswertung_kulturen(req: AuswertungRequest):
     if req.von > req.bis:
         raise HTTPException(400, "Von darf nicht nach Bis liegen")
     rows = db.get_auftraege_flat(req.von, req.bis)
-    summaries = _build_auftrag_summary(rows)
+    summaries = _filter_auftrag_summary(_build_auftrag_summary(rows), req)
 
     agg: dict = {}
     for a in summaries:
@@ -1379,7 +1447,26 @@ def export_csv(req: AuswertungRequest):
     if req.von > req.bis:
         raise HTTPException(400, "Von darf nicht nach Bis liegen")
     rows      = db.get_auftraege_flat(req.von, req.bis)
-    summaries = _build_auftrag_summary(rows)
+    summaries = _filter_auftrag_summary(_build_auftrag_summary(rows), req)
+    db.log_audit("csv_export", _actor(req.pw), None,
+                 f"von={req.von},bis={req.bis},kultur_id={req.kultur_id},topf={req.topfgroesse},form={req.topfform},ansicht={req.ansicht}")
+
+    if req.ansicht == "mengen":
+        buf = io.StringIO()
+        buf.write("\ufeff")
+        w = csv.writer(buf, delimiter=";")
+        w.writerow(["Datum", "Auftragsnr", "Kultur", "Topfgroesse", "Topfform", "Gesamtstueck",
+                    "Mitarbeiterstunden", "Stueck_pro_MA-Std", "Status", "Mengenstatus", "Notiz"])
+        for a in summaries:
+            w.writerow([a["datum"], a["auftragsnr"], a["kultur"], a["topfgroesse"], a["topfform"],
+                        a["gesamtstueck"] if a["gesamtstueck"] is not None else "",
+                        str(a["total_mh"]).replace(".", ","),
+                        str(a["stueck_pro_mah"]).replace(".", ",") if a["stueck_pro_mah"] is not None else "",
+                        a["status"], "bestaetigt" if a["status"] == "abgeschlossen" else "vorlaeufig",
+                        (a["notiz"] or "").replace("\r", " ").replace("\n", " ")])
+        return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="Mayer_Mengen_{req.von}_{req.bis}.csv"'})
+
     anrechnungen = {}
     for plan in plan_db.fortschritt(req.von, req.bis):
         for a in plan["auftraege"]:
@@ -1388,10 +1475,6 @@ def export_csv(req: AuswertungRequest):
                 if a["status"] != "abgeschlossen":
                     menge += " vorlaeufig"
                 anrechnungen.setdefault(a["id"], []).append(f"{plan['id']}: {menge}")
-    if req.kultur_id is not None:
-        summaries = [a for a in summaries if a["kultur_id"] == req.kultur_id]
-    db.log_audit("csv_export", _actor(req.pw), None,
-                 f"von={req.von},bis={req.bis},kultur_id={req.kultur_id}")
 
     DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
     buf = io.StringIO()
@@ -1473,10 +1556,9 @@ async def plan_konflikt(request: Request, exc: plan_db.PlanConflict):
 def planung_page(request: Request):
     if not _ueber_https(request):
         return RedirectResponse("https://10.10.0.210:8447/planung", status_code=307)
-    redirect = auth.guard_page(request, AUTH_CFG)
-    if redirect:
-        return redirect
-    return FileResponse(os.path.join(STATIC, "planung.html"), headers={"Cache-Control": "no-cache"})
+    # Seit 22.10.2026 ist die Planung eine Ansicht der Auswertung (wie Stolze). Alte
+    # Lesezeichen landen dort mit geoeffneter Ansicht; die Auswertung prueft die Anmeldung.
+    return RedirectResponse("/auswertung#planung", status_code=302)
 
 
 @app.get("/planung.js")

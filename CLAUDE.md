@@ -58,8 +58,8 @@ Kultur/Topf `akonfig-<id>`, Notiz `anot-<id>`. Unbestaetigte lokale Werte gegen
 Server-Reload schuetzen; Scanner-Ausnahmen, Auftrag-ID und Sperrzustaende beachten.
 Bestehende IndexedDB-Outbox `tm_outbox` bleibt kompatibel.
 
-Produktionsplanung steht nur unter `/planung` und in der Auswertung, nicht in der
-Erfassung. Neue Vorgaben verlangen sechs gueltige Angaben; Speichern ist sonst
+Produktionsplanung steht nur in der Auswertung (Ansicht "Produktionsplanung"),
+nicht in der Erfassung; `/planung` leitet seit 22.10.2026 auf `/auswertung#planung`. Neue Vorgaben verlangen sechs gueltige Angaben; Speichern ist sonst
 grau. Alte bereits angerechnete Vorgaben ohne Form bleiben mit Hinweis bearbeitbar.
 Automatische Zuordnung verwendet Kultur, Topfgroesse, gewaehlte Topfform und
 Produktionsbeginn. Fruehester Termin zuerst; jede Menge wird nur einmal verteilt.
@@ -69,9 +69,36 @@ sichert bereits angerechnete Anteile. Bestehende feste Zuordnungen haben Vorrang
 Auswertung laedt bei gueltiger Datumsauswahl/Schnellwahl automatisch. Alte Antworten
 duerfen neue Ergebnisse nicht ueberschreiben. Produktion offen zeigt nur aktive
 unerfuellte Vorgaben. Der Kulturfilter ist ein einzelnes durchsuchbares Feld;
-erst Auswahl/Enter uebernimmt die ID. Navigation enthaelt Dashboard - Uebersicht,
-Produktionsplanung Mayer und Erfassung Mayer. CSV exportiert auch Form, Nummern,
+erst Auswahl/Enter uebernimmt die ID. CSV exportiert auch Form, Nummern,
 Notiz und Plananrechnung. Keine Stolze-Rolle fuer Mayer-Schreibrechte verwenden.
+
+## Einheitliche Auswertung wie Stolze (22.10.2026)
+
+Die Auswertung ist aus der Stolze-Seite uebernommen, ohne deren Zaehler- und
+Stundenteile. Mayer-eigen bleiben Petrol/Blau, Rolle `topfmaschine_mayer`,
+Ports, Datenbank und manuelle Mengenerfassung.
+
+* Zeitwahl Heute/Woche/Monat/Jahr, Jahres-/Monatsauswahl (`/api/auswertung/jahre`),
+  Matrix Kulturen x Monate mit Tagen, Auftraegen und Mitarbeiterzeiten im
+  geoeffneten Tag. **Keine Stundenwerte im Tag** -- es gibt keinen Zaehler.
+* `produktion-uebersicht.js` und `tests/test_produktionsuebersicht.cjs` sind
+  byte-identisch mit Halle 1 (CRLF) und werden nur dort geaendert und hierher
+  kopiert. Die Farben setzt Mayer ueber die `--pu-*`-Variablen in `:root` von
+  `auswertung.html`; die gemeinsame Datei behaelt das Gruen als Vorgabe.
+* `produktionsbericht.js` entspricht Stolze ohne Stunden-Platzhalter; die
+  Funktionsnamen `stolze*` sind bewusst gleich geblieben (gleiche Tests).
+* Ansicht: Produktion | Produktionsplanung | Offene Produktion (Wert in `#fRange`).
+  Die Planung ist eingebettet (`TMPlan.planungLaden()`), Zeitraum und Kultur
+  kommen aus den Filtern der Auswertung.
+* Filter Topfgroesse/Topfform wirken auf Summary, Kulturen und beide CSV;
+  `ansicht="mengen"` liefert eine Zeile je Auftrag (`Mayer_Mengen_...csv`).
+* Admin (nur Rolle admin) loescht Auftraege vergangener Tage in der Auftragstabelle
+  und im geoeffneten Tag: `POST /api/auswertung/auftrag/loeschen`, 409 fuer heute,
+  Protokoll `auswertung_auftrag_delete` mit vollstaendigem Inhalt.
+* Navigation mit allen Anwendungen (17 Eintraege wie Stolze), aktuelle Seite
+  "Mayer Auswertung". Kopfknoepfe der Planung wie "Abmelden".
+* `auswertung.html` und die Skripte werden mit `Cache-Control: no-cache`
+  ausgeliefert; bei Skriptaenderungen `?v=` erhoehen.
 
 Migrationen fuegen Spalten/Planungstabellen hinzu, ohne Mengen, Kulturkennungen
 oder Mitarbeiterzeiten zu veraendern. Vor dem Einspielen Datenbank mit

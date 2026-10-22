@@ -4,10 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Topfmaschine Mayer – Auswertung</title>
-<link rel="stylesheet" href="/planung.css?v=20261016-pflicht-1">
+<link rel="stylesheet" href="/planung.css?v=20261022-mayer-1">
 <style>
 :root{
   --leaf:#1f6f8a;--leaf-dark:#123c4d;--leaf-light:#e2eef1;
+  /* Farben der gemeinsamen produktion-uebersicht.js (Vorgabe dort: Gruen von Halle 1/Stolze). */
+  --pu-akzent:#1f6f8a;--pu-akzent-dunkel:#123c4d;--pu-text:#123c4d;--pu-kopf-text:#2c4a55;
+  --pu-feld-hover-rand:#9fc3cf;--pu-feld-rand:#cfdfe4;--pu-zu-hover:#cfe2e8;--pu-block:#e2eef1;
+  --pu-hell:#e2eef1;--pu-feld:#eef5f7;--pu-tag-hover:#f3f8fa;
   --paper:#f7f5ef;--paper-line:#e3ded2;--ink:#21251f;--ink-soft:#5c6157;
   --amber:#c9821f;--amber-soft:#f5e7cf;--amber-dark:#7a4d0c;
   --danger:#a8341f;--danger-soft:#f3ddd6;
@@ -24,28 +28,49 @@ a.back:hover{text-decoration:underline;}
 .seiten-navigation{position:relative;margin-left:auto;}
 .navigation-knopf{border:1px solid #ffffff60;border-radius:8px;padding:8px 12px;background:#ffffff15;color:#fff;font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;}
 .navigation-knopf:focus-visible,.navigation-links a:focus-visible{outline:2px solid #9fe0a4;outline-offset:3px;}
-.navigation-links{position:absolute;right:0;top:calc(100% + 10px);z-index:100;width:270px;max-width:calc(100vw - 32px);padding:6px;background:#fff;border:1px solid var(--paper-line);border-radius:10px;box-shadow:0 6px 20px #0003;}
+.navigation-links{position:absolute;right:0;top:calc(100% + 10px);z-index:100;width:330px;max-width:calc(100vw - 32px);padding:6px;background:#fff;border:1px solid var(--paper-line);border-radius:10px;box-shadow:0 6px 20px #0003;}
 .navigation-links[hidden]{display:none;}
-.navigation-links a{display:block;padding:12px;border-radius:6px;color:var(--leaf-dark);text-decoration:none;font-size:.95rem;font-weight:600;}
+.navigation-links a{display:block;padding:8px 12px;border-radius:6px;color:var(--leaf-dark);text-decoration:none;font-size:.92rem;font-weight:600;}
+/* 17 Eintraege: Liste scrollt, statt unter den Bildschirmrand zu laufen; Trennlinie je Anwendung. */
+.navigation-links{max-height:calc(100vh - 90px);overflow-y:auto;}
+.navigation-links a.nav-gruppe{margin-top:4px;border-top:1px solid var(--paper-line);border-top-left-radius:0;border-top-right-radius:0;padding-top:10px;}
+.navigation-links a[aria-current=page]{background:var(--leaf-light);color:var(--leaf-dark);}
+.navigation-links a[aria-current=page]::after{content:" · diese Seite";font-weight:400;color:var(--ink-soft);font-size:.82rem;}
 .navigation-links a:hover,.navigation-links a:focus-visible{background:var(--leaf-light);}
-main{padding:20px;max-width:1100px;margin:0 auto;}
+/* 1600 px wie Halle 1: die Matrix Kulturen x Monate braucht die Breite, sonst muss seitlich gescrollt werden. */
+main{padding:16px;max-width:1600px;margin:0 auto;}
 h2{font-size:1.1rem;font-weight:700;color:var(--leaf-dark);margin:24px 0 10px;}
 h2:first-child{margin-top:0;}
 
-/* Filter-Leiste */
-.filter-bar{background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:16px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
-.filter-bar label{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);display:block;margin-bottom:4px;}
+/* Zeitwahl-Leiste und Filter wie in Halle 1 -- alle Auswertungen werden gleich bedient. */
+.quick-bar{background:#fff;border:1px solid var(--paper-line);border-radius:12px;box-shadow:var(--shadow);padding:11px 15px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:7px 12px;align-items:center;}
+.quick-bar .sep{width:1px;height:24px;background:var(--paper-line);}
+.ansicht-wahl{display:flex;flex-wrap:wrap;align-items:center;gap:7px;}
+.ansicht-wahl .lbl{font-size:.8rem;}
+.ansicht-wahl button{font:inherit;font-size:.84rem;padding:6px 10px;border:1px solid #d8d7ca;border-radius:7px;background:#fff;color:#123c4d;cursor:pointer;}
+.ansicht-wahl button[aria-pressed=true]{background:var(--leaf);color:#fff;}
+/* Eingebettete Produktionsplanung: Abstand wie die Karten der Auswertung. */
+#planungsAnsicht .plan-karte{margin:0 0 14px;}
+#planungsAnsicht .plan-archiv{display:flex;align-items:center;gap:8px;font-weight:600;margin:0 0 10px;}
+.filter-bar{background:#fff;border:1px solid var(--paper-line);border-radius:12px;box-shadow:var(--shadow);padding:12px 15px;margin-bottom:12px;display:flex;gap:11px;align-items:flex-end;flex-wrap:wrap;}
+.filter-bar label{font-size:.69rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);display:block;margin-bottom:4px;}
+.filter-bar .actions{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto;align-items:flex-end;}
+.lade-status{margin:0 0 12px;}
+.note{font-size:.875rem;line-height:1.5;color:var(--ink-soft);margin:4px 0 14px;}
 .filter-bar input,.filter-bar select{padding:8px 10px;border:1.5px solid var(--paper-line);border-radius:7px;font-size:.9rem;font-family:inherit;background:var(--paper);color:var(--ink);}
 .filter-bar input:focus,.filter-bar select:focus{outline:none;border-color:var(--leaf);}
 .btn-load{background:var(--leaf);color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:.9rem;font-weight:700;cursor:pointer;}
 .btn-load:active{background:var(--leaf-dark);}
-.btn-export{background:#fff;border:1.5px solid var(--paper-line);color:var(--ink-soft);border-radius:8px;padding:9px 14px;font-size:.85rem;font-weight:600;cursor:pointer;}
+.btn-export{background:#fff;border:1.5px solid var(--paper-line);color:var(--ink-soft);border-radius:8px;padding:9px 16px;font-size:.88rem;font-weight:700;cursor:pointer;}
+.btn-export:hover{border-color:var(--leaf);color:var(--leaf);}
+.btn-export:disabled{opacity:.5;cursor:default;}
 
 /* KPI-Kacheln */
-.kpi-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
-.kpi{background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 18px;flex:1;min-width:130px;}
-.kpi-val{font-size:2rem;font-weight:800;color:var(--leaf-dark);font-variant-numeric:tabular-nums;}
-.kpi-lab{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);margin-top:2px;}
+/* Groessen wie die Kennzahlen in Halle 1 */
+.kpi-row{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px;}
+.kpi{background:#fff;border:1px solid var(--paper-line);border-radius:11px;box-shadow:var(--shadow);padding:11px 13px;flex:1;min-width:110px;}
+.kpi-val{font-size:1.5rem;font-weight:800;color:var(--leaf-dark);font-variant-numeric:tabular-nums;}
+.kpi-lab{font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);}
 
 /* Tabellen */
 .tbl-wrap{overflow-x:auto;margin-bottom:24px;}
@@ -54,7 +79,9 @@ table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(-
    ("Mitarbeiter-Std.", "Stück / Mitarbeiter-Std.") passt die Auftragstabelle
    sonst nicht mehr in die Seitenbreite und der Browser quetscht stattdessen
    die Zellen zusammen. */
-th{background:var(--leaf-dark);color:#fff;padding:9px 9px;font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;text-align:left;white-space:nowrap;}
+/* Koepfe wie in Halle 1: normale Schreibweise statt Versalien auf Dunkelgruen. */
+th{background:var(--paper);color:var(--ink-soft);padding:9px 9px;font-size:.875rem;font-weight:600;text-align:left;white-space:nowrap;border-bottom:1px solid var(--paper-line);}
+th.num{text-align:right;}
 td{padding:9px 9px;font-size:.9rem;border-bottom:1px solid var(--paper-line);vertical-align:middle;}
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:var(--leaf-light);}
@@ -69,6 +96,92 @@ tr.missing td{background:#fde8ef;}
 .perf-bar-bg{background:var(--paper-line);border-radius:4px;height:7px;min-width:80px;overflow:hidden;}
 .perf-bar-fg{height:100%;background:var(--leaf);border-radius:4px;}
 
+/* Einklappbare Karte. Uebernommen aus der Rapido-Auswertung, damit die
+   stuendliche Produktion in beiden Anwendungen gleich aussieht und sich
+   gleich bedienen laesst. */
+.card{background:#fff;border:1px solid var(--paper-line);border-radius:12px;box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden;}
+.card-head{padding:11px 15px;border-bottom:1px solid var(--paper-line);display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;}
+.card-head:hover{background:#f9f8f5;}
+.card-head h2{margin:0;font-size:.92rem;font-weight:700;color:var(--ink);flex:1;}
+.card-head .collapse-ico{font-size:.75rem;color:var(--ink-soft);transition:transform .18s;display:inline-block;}
+.card-body>.note,.card-body>#kulturAgg{margin-left:15px;margin-right:15px;}
+.card-body>.note:first-child{margin-top:12px;}
+.card-body>#kulturAgg{padding-bottom:10px;}
+/* Tabellen in Karten und Monatsdetails brauchen keinen eigenen Rahmen. */
+.card table,.prod-detail table{border:0;border-radius:0;box-shadow:none;}
+.card-body.tbl-wrap{margin-bottom:0;}
+/* Die gemeinsame Datei gestaltet die Tageszeilen als <details>. Das
+   Mitarbeiter-Aufklappen in der Auftragstabelle ist ebenfalls ein <details>
+   und darf diese Gestaltung nicht erben -- lokal zurueckgesetzt, damit
+   produktion-uebersicht.js mit Halle 1 identisch bleibt. */
+.prod-detail .auftrag-details details{margin:0;border:0;border-radius:0;background:transparent;}
+.prod-detail .auftrag-details summary{display:list-item;list-style:revert;padding:0;font-size:inherit;color:var(--leaf-dark);}
+.prod-detail .auftrag-details details[open]>summary{border-bottom:0;margin-bottom:6px;}
+.prod-detail .auftrag-details summary:hover{background:transparent;text-decoration:underline;}
+/* Geoeffnete Matrixzeile und ihr Detailbereich als ein Block: ein Rahmen um
+   beides, ein Hintergrund. Stolze und Mayer (22.10.2026) -- bewaehrt es sich,
+   gehoert es in produktion-uebersicht.js und gilt dann auch fuer Halle 1.
+   Die fixierte Kulturspalte bekommt den Rahmen als Schatten: Raender an
+   sticky-Zellen wandern bei border-collapse beim seitlichen Scrollen nicht mit. */
+.prod-matrix>tbody>tr:has([aria-expanded=true])>th,
+.prod-matrix>tbody>tr:has([aria-expanded=true])>td{background:#e2eef1;border-top:2px solid #1f6f8a;border-bottom:0;}
+.prod-matrix>tbody>tr:has([aria-expanded=true])>th:first-child{background:#e2eef1;box-shadow:inset 2px 0 0 #1f6f8a;}
+.prod-matrix>tbody>tr:has([aria-expanded=true])>td:last-child{border-right:2px solid #1f6f8a;}
+/* Linker Rahmen in beiden Zeilen vom selben Mechanismus: fixierte Kulturspalte
+   und fixierter Detailinhalt zeichnen ihn jeweils als Schatten. Vorher war er
+   unten ein Zellrand -- der sitzt bei border-collapse halb ausserhalb der Zelle
+   und scrollt mit; die Linie sprang um 1-2 px (22.10.2026). */
+.prod-matrix>tbody>tr:has([aria-expanded=true])+tr.prod-detail>td{border-top:0;border-left:0;padding:0;}
+/* Nicht gewaehlte Monatsfelder der Zeile nur angedeutet; einzige Hervorhebung bleibt das gewaehlte Feld. */
+.prod-matrix>tbody>tr:has([aria-expanded=true]) .prod-monat[aria-expanded=false]{background:#f2f8fa;border-color:#bcd6de;}
+/* Im Block nur ein Gruen: keine weissen Kaesten, keine beigen Koepfe. Struktur
+   entsteht aus feinen Linien und etwas dunkleren Kopfzeilen (22.10.2026, vorerst
+   nur Stolze und Mayer). Selektoren mit .prod-matrix, weil produktion-uebersicht.js ihre
+   Stile spaeter einfuegt und bei gleicher Spezifitaet gewinnen wuerde. */
+/* Breite am sichtbaren Bereich der Matrix statt am Fenster: sonst blieb rechts
+   eine Luecke von ~50 px, je nach Fensterbreite verschieden. Breite = sichtbar
+   minus rechter Rahmen; Innenabstand 10 px links (inkl. 2 px Rahmenschatten) und
+   8 px + 2 px Rahmen rechts, damit der Inhalt mittig im Rahmen sitzt. */
+.prod-scroll{container-type:inline-size;}
+.prod-matrix .prod-detail-inhalt{width:calc(100cqw - 2px);max-width:none;padding:2px 8px 10px 10px;box-shadow:inset 2px 0 0 #1f6f8a;}
+/* Tage als hellgruene Zeilen mit Trennlinie. Der geoeffnete Tag ist an seiner
+   kraeftigeren, fetten Kopfzeile erkennbar (frueher ein Balken nur links -- wirkte schief). */
+.prod-matrix .prod-detail-inhalt>details{margin:0;border:0;border-radius:0;background:transparent;border-bottom:1px solid #bcd6de;}
+.prod-matrix .prod-detail-inhalt>details>summary:hover{background:#cfe2e8;}
+.prod-matrix .prod-detail-inhalt>details[open]>summary{background:#cfe2e8;font-weight:700;border-bottom:0;margin-bottom:0;}
+/* Zahlen der Tageszeile dunkel: grau auf Gruen war zu kontrastarm. */
+.prod-matrix .prod-detail-inhalt>details>summary .tag-wert{color:#21251f;}
+/* Inhalt des geoeffneten Tages (Auftraege) auf einem weissen
+   Feld mit gleichem Abstand links und rechts: Weiss gegen Gruen gibt den
+   Kontrast, Koepfe und Summen im Blockgruen verbinden das Feld mit dem Block. */
+.prod-matrix .prod-detail-inhalt>details>.prod-scroll{background:#fff;border:1px solid #bcd6de;border-radius:8px;margin:8px 10px 12px;}
+.prod-matrix .prod-detail table{background:transparent;}
+.prod-matrix .prod-detail th{background:#e2eef1;border-bottom-color:#bcd6de;}
+.prod-matrix .prod-detail td{border-bottom-color:#dde9ed;}
+/* Kein Einfaerben beim Darueberfahren. Die allgemeine Regel "tr:hover td" greift sonst
+   ueber die Matrixzeile, die den ganzen Detailbereich enthaelt: Maus irgendwo im Tag
+   und alle Tabellenzellen wurden gruen. Deshalb fuer alle Zellen im Detailinhalt fest,
+   nicht nur fuer die ueberfahrene Zeile. Steht vor der Summenregel ("Gesamt" bleibt gruen). */
+.prod-matrix .prod-detail-inhalt td{background:transparent;}
+.prod-matrix .prod-detail tr.sum-row td{background:#e2eef1;border-top-color:#bcd6de;}
+/* Ueberschrift "Kultur · Zeitraum" klappt ein: beim Darueberfahren nur unterstrichen,
+   nicht gruen hinterlegt (die gemeinsame Datei faerbt sie, hier zurueckgenommen). */
+.prod-matrix .prod-detail-zu:hover{background:transparent;text-decoration:underline;text-underline-offset:4px;}
+/* Legende: eine Zeile, die Erlaeuterung erst auf Klick (wie Halle 1). */
+.legende{margin:10px 12px 4px;font-size:.875rem;color:var(--ink-soft);}
+.legende>summary{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;cursor:pointer;}
+.legende>summary::-webkit-details-marker{display:none;}
+.legende-info{margin-left:auto;color:var(--leaf);font-weight:600;}
+.legende>summary:hover .legende-info{text-decoration:underline;}
+.legende ul{margin:8px 0 4px;padding-left:18px;line-height:1.6;}
+.card.collapsed .collapse-ico{transform:rotate(-90deg);}
+.card.collapsed .card-body{display:none;}
+.card.collapsed .card-head{border-bottom:none;}
+.card-hint{font-size:.78rem;color:var(--ink-soft);padding:0 16px 12px;}
+
+.dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle;}
+tr.sum-row td{background:var(--paper);font-weight:700;border-top:2px solid var(--paper-line);}
+td.dash{color:var(--ink-soft);}
 /* Notiz als eigene Zeile unter dem Auftrag, ueber die volle Breite. Als
    dreizehnte Spalte stand sie rechts ausserhalb des Sichtbereichs und war auf
    190px gekuerzt - gelesen wurde sie so nie. Ohne diese Spalte passt die
@@ -97,6 +210,10 @@ td.zelle-edit{width:1%;white-space:nowrap;padding-left:4px;padding-right:8px;}
 .btn-zeile-edit{border:1.5px solid var(--paper-line);background:#fff;color:var(--ink-soft);
   border-radius:7px;padding:4px 9px;font-size:.85rem;cursor:pointer;line-height:1.1;}
 .btn-zeile-edit:hover{border-color:var(--leaf);color:var(--leaf-dark);}
+.btn-zeile-loeschen{border:1.5px solid var(--danger-soft);background:#fff;color:var(--danger);
+  border-radius:7px;padding:4px 8px;font-size:.85rem;cursor:pointer;line-height:1.1;}
+.btn-zeile-loeschen:hover{background:var(--danger-soft);}
+.btn-zeile-loeschen:disabled{opacity:.5;cursor:wait;}
 
 /* Korrektur-Dialog. Bewusst derselbe Zuschnitt wie der Dialog der Erfassung -
    wer beide benutzt, soll nicht zwei Bedienungen lernen muessen. */
@@ -185,34 +302,57 @@ td.zelle-edit{width:1%;white-space:nowrap;padding-left:4px;padding-right:8px;}
   <button class="back" id="btnAbmelden" style="display:none;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:6px 12px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:inherit;margin-right:14px">Abmelden</button>
   <nav class="seiten-navigation" id="seitenNavigation" aria-label="Seitennavigation">
     <button class="navigation-knopf" id="navigationKnopf" type="button" aria-expanded="false" aria-controls="navigationLinks">Navigation ▾</button>
+    <!-- Alle Anwendungen in der Reihenfolge des Portals; Adressen wie im Dashboard
+         (Dashboard_Portal/index.html). Fahrradverleih hat keine eigene Auswertungsseite,
+         "Auswertung" fuehrt dort auf die App. Produktionsplanung steht bei der Ansicht. -->
     <div class="navigation-links" id="navigationLinks" hidden>
       <a href="https://10.10.0.210:8450/">Dashboard – Übersicht</a>
-      <a href="/planung">Produktionsplanung Mayer</a>
-      <a href="/">Erfassung Mayer</a>
+      <a class="nav-gruppe" href="https://10.10.0.210:8443/">Halle 1 Erfassung</a>
+      <a href="https://10.10.0.210:8443/auswertung">Halle 1 Auswertung</a>
+      <a class="nav-gruppe" href="https://10.10.0.210:8446/">Stolze Erfassung</a>
+      <a href="https://10.10.0.210:8446/auswertung">Stolze Auswertung</a>
+      <a class="nav-gruppe" href="https://10.10.0.210:8447/">Mayer Erfassung</a>
+      <a href="https://10.10.0.210:8447/auswertung" aria-current="page">Mayer Auswertung</a>
+      <a class="nav-gruppe" href="https://10.10.0.210:8444/">Blumenband Erfassung</a>
+      <a href="https://10.10.0.210:8444/auswertung">Blumenband Auswertung</a>
+      <a class="nav-gruppe" href="https://10.10.0.210:8445/">Rapido Tisch Erfassung</a>
+      <a href="https://10.10.0.210:8445/auswertung">Rapido Tisch Auswertung</a>
+      <a class="nav-gruppe" href="https://10.10.0.210:8448/">Blumenstrauß-Verpackung Erfassung</a>
+      <a href="https://10.10.0.210:8448/auswertung">Blumenstrauß-Verpackung Auswertung</a>
+      <a class="nav-gruppe" href="https://10.10.0.210:8449/">Rapido Advent Erfassung</a>
+      <a href="https://10.10.0.210:8453/auswertung">Rapido Advent Auswertung</a>
+      <a class="nav-gruppe" href="https://10.10.0.210:8452/">Fahrradverleih Erfassung</a>
+      <a href="https://10.10.0.210:8452/">Fahrradverleih Auswertung</a>
     </div>
   </nav>
 </header>
 
 <main>
+  <!-- Zeitwahl und Ansicht wie in Halle 1: eine Leiste, Von/Bis bleibt darunter verbindlich. -->
+  <div class="quick-bar">
+    <div id="zeitSchnellwahl"></div>
+    <span class="sep" aria-hidden="true"></span>
+    <!-- "Produktion offen" schaltet die ganze Seite auf den Soll-Ist-Bericht um und
+         ist deshalb kein Filter, sondern eine Ansicht. Der Wert steht weiter in
+         #fRange, damit loadData() und ladePlanbericht() unveraendert bleiben. -->
+    <div class="ansicht-wahl" role="group" aria-label="Ansicht">
+      <span class="lbl">Ansicht</span>
+      <button type="button" data-ansicht="" aria-pressed="true">Produktion</button>
+      <button type="button" data-ansicht="planung" aria-pressed="false" title="Vorgaben anlegen und pflegen, Soll und Ist aller Vorgaben">Produktionsplanung</button>
+      <!-- Frueher "Produktion offen": gezeigt werden Planvorgaben mit Fehlmenge, keine laufenden Auftraege. -->
+      <button type="button" data-ansicht="produktion_offen" aria-pressed="false" title="Soll-Ist-Bericht: aktive Planvorgaben, bei denen noch Menge fehlt">Offene Produktion</button>
+    </div>
+    <input type="hidden" id="fRange" value="" />
+  </div>
   <!-- Filter -->
   <div class="filter-bar">
     <div>
-      <label>Von</label>
+      <label for="fVon">Von</label>
       <input type="date" id="fVon" />
     </div>
     <div>
-      <label>Bis</label>
+      <label for="fBis">Bis</label>
       <input type="date" id="fBis" />
-    </div>
-    <div>
-      <label>Schnellwahl</label>
-      <select id="fRange">
-        <option value="">—</option>
-        <option value="today">Heute</option>
-        <option value="week">Diese Woche</option>
-        <option value="month">Dieser Monat</option>
-        <option value="produktion_offen">Produktion offen</option>
-      </select>
     </div>
     <div>
       <label for="fKulturAnzeige">Kulturauswahl</label>
@@ -222,23 +362,77 @@ td.zelle-edit{width:1%;white-space:nowrap;padding-left:4px;padding-right:8px;}
       </div>
       <select id="fKultur" hidden aria-hidden="true" tabindex="-1"><option value="">Alle</option></select>
     </div>
-    <span id="datenLadeStatus" role="status" aria-live="polite"></span>
-    <button class="btn-export" id="btnExport">⭳ CSV</button>
+    <div><label for="fTopf">Topfgröße</label><select id="fTopf"><option value="">alle</option></select></div>
+    <div><label for="fForm">Topfform</label><select id="fForm"><option value="">alle</option><option value="rund">rund</option><option value="eckig">eckig</option></select></div>
+    <div class="actions">
+      <button class="btn-export" id="btnMengenExport" title="Eine Zeile je Auftrag – die Mengen lassen sich summieren.">↓ Mengen-CSV</button>
+      <button class="btn-export" id="btnExport" title="Eine Zeile je Mitarbeiter – die Auftragsmenge wiederholt sich je Zeile und darf nicht summiert werden.">↓ Mitarbeiter-CSV</button>
+    </div>
   </div>
+  <p id="datenLadeStatus" class="lade-status" role="status" aria-live="polite"></p>
 
   <div class="planung plan-karte" id="auswertungPlanung" aria-live="polite" style="display:none"></div>
+  <!-- Produktionsplanung, seit 22.10.2026 hier statt auf der eigenen Seite /planung (die leitet
+       hierher um). Zeitraum und Kultur kommen aus den Filtern oben; planung.js startet beim
+       ersten Oeffnen der Ansicht (TMPlan.planungLaden). -->
+  <div class="planung" id="planungsAnsicht" hidden>
+    <div id="planMeldung" class="plan-meldung" role="status"></div>
+    <span id="planBenutzer" hidden></span>
+    <section id="planEditor" class="plan-karte" hidden>
+      <h2 id="planFormTitel">Neue Produktionsvorgabe</h2>
+      <form id="planForm" class="plan-form">
+        <div><label for="pKultur">Kultur</label><input id="pKultur" list="planKulturen" autocomplete="off" required maxlength="100" placeholder="Kultur suchen oder Freitext wählen"><datalist id="planKulturen"></datalist></div>
+        <div id="pFreiGruppe" hidden><label for="pFrei">Freitext-Kultur</label><input id="pFrei" maxlength="100"></div>
+        <div><label for="pTopf">Topfgröße</label><select id="pTopf" required><option value="">Bitte wählen</option></select></div>
+        <div><label id="pFormLabel">Topfform *</label><div class="plan-form-kacheln" role="group" aria-labelledby="pFormLabel"><button type="button" class="sekundaer" data-topfform="rund" aria-pressed="false">rund</button><button type="button" class="sekundaer" data-topfform="eckig" aria-pressed="false">eckig</button></div><div id="pFormBestand" class="plan-hinweis" hidden>Bestehende Vorgabe ohne Topfform – bisherige Anrechnung bleibt erhalten.</div></div>
+        <div><label for="pBeginn">Produktionsbeginn</label><input id="pBeginn" type="date" required></div>
+        <div><label for="pEnde">Produktionsende</label><input id="pEnde" type="date" required></div>
+        <div><label for="pSoll">Sollmenge (Stück)</label><input id="pSoll" type="number" min="1" max="1000000000" step="1" required inputmode="numeric"></div>
+        <div id="pFest" class="plan-hinweis plan-breit" hidden>Kultur, Topfgröße und Topfform sind nach der ersten Anrechnung fest. Änderungen an Produktionsbeginn, Produktionsende oder Sollmenge berechnen die automatischen Anteile neu.</div>
+        <div class="plan-breit"><label><input type="checkbox" id="pArchiv"> Vorgabe archivieren – bisherige Anrechnung bleibt sichtbar; neue Produktion wird nicht mehr angerechnet</label></div>
+        <div class="plan-aktionen plan-breit"><button type="submit" id="planSpeichern" disabled>Vorgabe speichern</button><button type="button" id="planAbbrechen" class="sekundaer">Abbrechen</button></div>
+      </form>
+    </section>
+    <section class="plan-karte">
+      <h2>Soll und Ist</h2>
+      <label class="plan-archiv"><input type="checkbox" id="planArchivZeigen"> Archivierte anzeigen</label>
+      <p class="plan-hinweis">„Produktion im Zeitraum“ folgt Von/Bis oben, die Kulturauswahl filtert die Vorgaben. „Ist gesamt“ umfasst alle abgeschlossenen Aufträge der Vorgabe, unabhängig vom Zeitraum; laufende Mengen stehen separat als vorläufig. Bei mehreren passenden Vorgaben wird zuerst das früheste Produktionsende bedient; Überhänge erscheinen bei der letzten passenden Vorgabe als Mehrproduktion.</p>
+      <div id="planBericht" aria-live="polite"></div>
+    </section>
+  </div>
   <div id="produktionsAuswertung">
   <!-- KPIs -->
   <div class="kpi-row" id="kpiRow">
     <div class="kpi"><div class="kpi-val" id="kpiAuftraege">—</div><div class="kpi-lab">Aufträge</div></div>
-    <div class="kpi"><div class="kpi-val" id="kpiStueck">—</div><div class="kpi-lab">Gesamtstück</div></div>
-    <div class="kpi"><div class="kpi-val" id="kpiMah">—</div><div class="kpi-lab">Mitarbeiter-Std.</div></div>
-    <div class="kpi"><div class="kpi-val" id="kpiLeistung">—</div><div class="kpi-lab">Stück / Mitarbeiter-Std.</div></div>
+    <div class="kpi"><div class="kpi-val" id="kpiStueck">—</div><div class="kpi-lab">Stück gesamt</div></div>
+    <div class="kpi"><div class="kpi-val" id="kpiMah">—</div><div class="kpi-lab">Netto-Mitarbeiterstunden</div></div>
+    <div class="kpi"><div class="kpi-val" id="kpiLeistung">—</div><div class="kpi-lab">Stück / MA-h (Team)</div></div>
+  </div>
+  <p class="note" id="mengenHinweis"></p>
+
+  <!-- Zentrale Ansicht wie in Halle 1. Alle Abschnitte darunter sind gleich
+       gebaute, einklappbare Karten; data-merken haelt den Zustand je Sitzung. -->
+  <div class="card" id="monatsCard" data-merken="tm_monate_zu">
+    <div class="card-head"><span aria-hidden="true">📅</span><h2>Jahres-/Monatsübersicht – Kulturen × Monate</h2><span class="collapse-ico">▾</span></div>
+    <div class="card-body">
+      <details class="legende">
+        <summary>
+          <span>Teamwerte: Stück, Netto-Mitarbeiterstunden und Stück/MA-h aller Mitarbeiter einschließlich Aufsicht</span>
+          <span class="legende-info">&#9432; Erläuterung</span>
+        </summary>
+        <ul>
+          <li><b>MA-h</b> = Netto-Mitarbeiterstunden: Ende − Beginn − Pause, über alle Mitarbeiter addiert. <b>Stk/MA-h</b> = Stück ÷ MA-h. Das ist eine Teamkennzahl einschließlich Aufsicht, keine Personenleistung.</li>
+          <li><b>Stück</b> ist die beim Abschluss bestätigte Auftragsmenge, auch wenn sie von Hand eingetragen wurde. Laufende und offene Aufträge sind mit ihrer vorläufigen Menge enthalten; fehlende Mengen bleiben offen.</li>
+          <li><b>Mengen-CSV</b>: eine Zeile je Auftrag, summierbar. <b>Mitarbeiter-CSV</b>: eine Zeile je Mitarbeiter; die Auftragsmenge wiederholt sich und darf dort nicht summiert werden.</li>
+        </ul>
+      </details>
+      <div id="monatsResult"></div>
+    </div>
   </div>
 
-  <!-- Aufträge-Tabelle -->
-  <h2>Aufträge</h2>
-  <div class="tbl-wrap">
+  <div class="card" id="auftraegeCard" data-merken="tm_auftraege_zu">
+    <div class="card-head"><span aria-hidden="true">📋</span><h2>Aufträge</h2><span class="collapse-ico">▾</span></div>
+    <div class="card-body tbl-wrap">
     <table id="auftraegeTbl">
       <thead>
         <tr>
@@ -249,9 +443,9 @@ td.zelle-edit{width:1%;white-space:nowrap;padding-left:4px;padding-right:8px;}
           <th>Start</th>
           <th>Ende</th>
           <th class="num">Mitarbeiter</th>
-          <th class="num">Mitarbeiter-<br>Std.</th>
+          <th class="num">MA-h</th>
           <th class="num">Stück</th>
-          <th class="num">Stück /<br>Mitarbeiter-Std.</th>
+          <th class="num">Stück/MA-h</th>
           <th>Status</th>
           <th></th>
         </tr>
@@ -260,23 +454,21 @@ td.zelle-edit{width:1%;white-space:nowrap;padding-left:4px;padding-right:8px;}
         <tr><td colspan="12" class="no-data">Daten laden …</td></tr>
       </tbody>
     </table>
-  </div>
-
-  <!-- Kultur-Aggregation -->
-  <h2>Leistung nach Kultur</h2>
-  <div style="background:#fff;border:1px solid var(--paper-line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:24px;">
-    <div id="kulturAgg" style="min-height:40px">
-      <div class="no-data" id="kulturAggEmpty">Nach dem Laden erscheinen hier die aggregierten Kulturleistungen.</div>
     </div>
   </div>
 
-  <!-- Tages-Aggregation -->
-  <h2>Tagesverlauf</h2>
-  <div class="tbl-wrap">
-    <table>
-      <thead><tr><th>Datum</th><th class="num">Aufträge</th><th class="num">Stück</th><th class="num">Mitarbeiter-<br>Std.</th><th class="num">Stück /<br>Mitarbeiter-Std.</th></tr></thead>
-      <tbody id="tagesBody"><tr><td colspan="5" class="no-data">–</td></tr></tbody>
-    </table>
+  <!-- Kultur-Aggregation. Zaehlt bewusst nur abgeschlossene Auftraege und
+       weicht deshalb von der Matrix ab -- eingeklappt und so beschriftet, damit
+       zwei verschiedene Zahlen fuer dieselbe Kultur nicht verwechselt werden.
+       Der fruehere "Tagesverlauf" ist entfallen: die Tage stehen in den
+       Monatsdetails der Matrix. -->
+  <div class="card collapsed" id="kulturCard" data-merken="tm_kultur_zu">
+    <div class="card-head"><span aria-hidden="true">📊</span><h2>Produktion nach Kultur – nur abgeschlossene Aufträge</h2><span class="collapse-ico">▾</span></div>
+    <div class="card-body">
+      <div id="kulturAgg">
+        <div class="no-data" id="kulturAggEmpty">Nach dem Laden erscheinen hier die aggregierten Kulturleistungen.</div>
+      </div>
+    </div>
   </div>
   </div>
 </main>
@@ -338,7 +530,9 @@ td.zelle-edit{width:1%;white-space:nowrap;padding-left:4px;padding-right:8px;}
 
 <script src="/kulturen.js?v=20261016-topfform-1"></script>
 <script src="/kulturauswahl.js?v=20261016-1"></script>
-<script src="/planung.js?v=20261016-pflicht-1"></script>
+<script src="/planung.js?v=20261022-mayer-1"></script>
+<script src="/produktion-uebersicht.js?v=20261022-mayer-1"></script>
+<script src="/produktionsbericht.js?v=20261022-mayer-1"></script>
 <script>
 "use strict";
 const pad = n => String(n).padStart(2,"0");
@@ -385,7 +579,7 @@ function _fetchTimeout(url, opts, timeoutMs){
 const AUTH_BASE = "https://10.10.0.210:8451";
 const APP_KEY   = "topfmaschine_mayer";
 let _kulturen = [];
-// Geladene Auftraege fuer Kulturfilter und Farbzuordnung.
+// Zuletzt geladene Auftragsliste fuer Kulturfilter, Farbzuordnung und Loeschen.
 let _letzteSummaries = [];
 
 /* ── Anmeldung ─────────────────────────────────────────────────── */
@@ -394,15 +588,17 @@ let _letzteSummaries = [];
    ohnehin am Server, der jede Korrektur gegen die Sitzung prueft. */
 let _rolle = null;
 function darfSchreiben(){ return _rolle === "meister" || _rolle === "admin"; }
+// Loeschen nur Admin und nur vergangene Tage -- der Server prueft beides ebenfalls.
+function darfLoeschen(r){ return _rolle === "admin" && !!r && r.datum < isoToday(); }
 
 function kopfzeileZeichnen(name, rolle){
   $("userBadge").textContent = name ? `${name} · ${rolle || "kein Zugriff"}` : "";
   $("btnAbmelden").style.display = name ? "" : "none";
-  const vorher = darfSchreiben();
+  const vorher = _rolle;
   _rolle = rolle || null;
-  // Die Rolle trifft haeufig erst ein, wenn die Tabelle schon steht. Ohne das
-  // erneute Zeichnen fehlte der Korrektur-Knopf bis zum naechsten Laden.
-  if(darfSchreiben() !== vorher && _letzteSummaries.length) renderAuftraege(_letzteSummaries);
+  // Die Rolle trifft haeufig erst ein, wenn Tabelle und Matrix schon stehen. Ohne das
+  // erneute Zeichnen fehlten Korrektur- und Loeschknopf bis zum naechsten Laden.
+  if(_rolle !== vorher && _letzteSummaries.length) renderAuswahl();
 }
 
 async function doAuth(){
@@ -505,36 +701,53 @@ async function init(){
       o.value=String(id); o.textContent=name; sel.appendChild(o);
     });
     kulturCombo.aktualisieren();
+    $("fTopf").innerHTML='<option value="">alle</option>'+(cfg.topfgroessen||[]).map(t=>'<option value="'+esc(t)+'">'+esc(t)+'</option>').join("");
   } catch(e){}
 
+  // Alte Lesezeichen auf /planung landen hier mit #planung (Umleitung in main.py).
+  if(location.hash === "#planung") $("fRange").value = "planung";
   // Datum-Defaults
   $("fVon").value = isoToday();
   $("fBis").value = isoToday();
+  stolzeZeitraumStart();
+  $("btnMengenExport").onclick=stolzeMengenExport;
+  for(const id of ["fTopf","fForm"])$(id).addEventListener("change",renderAuswahl);
   await loadData();
 }
 
-/* Schnellwahl */
-$("fRange").addEventListener("change", () => {
-  const v = $("fRange").value;
-  const today = new Date();
-  const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  if(v==="today"){ $("fVon").value=$("fBis").value=iso(today); }
-  else if(v==="week"){
-    const mon=new Date(today); mon.setDate(today.getDate()-(today.getDay()+6)%7);
-    $("fVon").value=iso(mon); $("fBis").value=iso(today);
-  } else if(v==="month"){
-    const m1=new Date(today.getFullYear(),today.getMonth(),1);
-    $("fVon").value=iso(m1); $("fBis").value=iso(today);
-  }
+/* Ansicht: Produktion, Produktionsplanung (Wert "planung") oder Offene Produktion
+   (Wert "produktion_offen"). Die Datumsschnellwahl liegt
+   seitdem in produktion-uebersicht.js (Heute/Woche/Monat/Jahr wie Halle 1). */
+document.querySelectorAll("[data-ansicht]").forEach(knopf=>knopf.addEventListener("click",()=>{
+  $("fRange").value=knopf.dataset.ansicht;
   loadData();
-});
+}));
+function ansichtKnoepfeSetzen(){
+  document.querySelectorAll("[data-ansicht]").forEach(k=>k.setAttribute("aria-pressed",String(k.dataset.ansicht===$("fRange").value)));
+}
 
 for(const id of ["fVon","fBis"]){
   $(id).addEventListener("change",()=>{
     if($("fRange").value!=="produktion_offen") $("fRange").value="";
+    if(stolzeZeitwahl)stolzeZeitwahl.manuell();
     loadData();
   });
 }
+
+/* Karten auf- und zuklappen. Der Zustand bleibt innerhalb der Sitzung
+   erhalten, damit ein erneutes Laden die Karte nicht wieder zuklappt.
+   Gilt fuer alle Abschnitte gleich; der Startzustand steht im HTML. */
+document.querySelectorAll(".card[data-merken]").forEach(karte=>{
+  const schluessel=karte.dataset.merken;
+  try {
+    const zu=sessionStorage.getItem(schluessel);
+    if(zu!==null) karte.classList.toggle("collapsed", zu==="1");
+  } catch(e){}
+  karte.querySelector(".card-head").addEventListener("click", () => {
+    karte.classList.toggle("collapsed");
+    try { sessionStorage.setItem(schluessel, karte.classList.contains("collapsed") ? "1" : "0"); } catch(e){}
+  });
+});
 
 /* Kultur-Filter wirkt sofort auf die bereits geladenen Daten - ein erneuter
    Serverabruf ist dafuer nicht noetig. */
@@ -549,7 +762,7 @@ function renderAuswahl(){
   const rows = _filterKultur(_letzteSummaries);
   renderKPIs(rows);
   renderAuftraege(rows);
-  renderTage(rows);
+  if(typeof renderMonatsUebersicht==="function")renderMonatsUebersicht(rows);
   // Gleiche Auswahl wie in Tabelle und Kennzahlen; der Kulturvergleich
   // beruecksichtigt wie bisher nur abgeschlossene Auftraege.
   const kulturen = new Map();
@@ -572,15 +785,24 @@ function zeitraumGueltig(){
   return /^\d{4}-\d{2}-\d{2}$/.test(von) && /^\d{4}-\d{2}-\d{2}$/.test(bis) && von<=bis;
 }
 function zeigeAuswertungsansicht(){
-  const nurOffen=$("fRange").value==="produktion_offen";
-  $("produktionsAuswertung").style.display=nurOffen ? "none" : "block";
+  const nurOffen=$("fRange").value==="produktion_offen", planung=$("fRange").value==="planung";
+  const keineProduktion=nurOffen||planung;
+  $("produktionsAuswertung").style.display=keineProduktion ? "none" : "block";
   $("auswertungPlanung").style.display=nurOffen ? "block" : "none";
-  $("btnExport").style.display=nurOffen ? "none" : "";
+  if($("planungsAnsicht"))$("planungsAnsicht").hidden=!planung;
+  $("btnExport").style.display=keineProduktion ? "none" : "";
+  if($("btnMengenExport"))$("btnMengenExport").style.display=keineProduktion ? "none" : "";
+  // Planvorgaben kennen nur Kultur und Zeitraum; Topfgroesse/-form filtern dort nicht.
+  if($("fTopf"))$("fTopf").disabled=keineProduktion;
+  if($("fForm"))$("fForm").disabled=keineProduktion;
+  if(typeof ansichtKnoepfeSetzen==="function")ansichtKnoepfeSetzen();
 }
 async function ladePlanbericht(){
   zeigeAuswertungsansicht();
   const anfrage = ++_planBerichtAnfrage;
   if(!zeitraumGueltig()) return;
+  // Ansicht Produktionsplanung: Formular und alle Vorgaben laedt planung.js selbst.
+  if($("fRange").value==="planung"){ await TMPlan.planungLaden(); return; }
   const target = $("auswertungPlanung");
   target.textContent="Wird geladen …";
   try {
@@ -603,30 +825,34 @@ async function loadData(){
   const von=$("fVon").value, bis=$("fBis").value;
   const status=$("datenLadeStatus");
   $("btnExport").disabled=true;
+  if($("btnMengenExport"))$("btnMengenExport").disabled=true;
+  let erfolgreich=false;
+  if(typeof stolzeDatenLeeren==="function")stolzeDatenLeeren();
   if(!zeitraumGueltig()){
     status.textContent="Bitte einen gültigen Zeitraum wählen (Von bis Bis).";
     return;
   }
   status.textContent="Wird geladen …";
   try {
-    if($("fRange").value==="produktion_offen"){
+    if($("fRange").value==="produktion_offen" || $("fRange").value==="planung"){
       await ladePlanbericht();
       return;
     }
-    const antwort=await _fetchTimeout("/api/auswertung/summary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis})});
-    if(!antwort.ok)throw new Error('Aufträge konnten nicht geladen werden.');
-    const summaries=await antwort.json();
+    const summaries = await _fetchTimeout("/api/auswertung/summary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis})}).then(r=>{if(!r.ok)throw new Error('Aufträge konnten nicht geladen werden.');return r.json();});
     if(anfrage!==_auswertungAnfrage) return;
     _letzteSummaries = Array.isArray(summaries) ? summaries : [];
     _farbenSetzen(_letzteSummaries);
     renderAuswahl();
     await ladePlanbericht();
+    erfolgreich=true;
+    status.textContent="Datenstand: "+new Date().toLocaleString("de-DE");
   } catch(e){
     if(anfrage===_auswertungAnfrage) status.textContent="Laden fehlgeschlagen. Bitte Auswahl erneut bestätigen.";
   } finally {
     if(anfrage===_auswertungAnfrage){
       if(status.textContent==="Wird geladen …") status.textContent="";
-      $("btnExport").disabled=false;
+      $("btnExport").disabled=!erfolgreich;
+      if($("btnMengenExport"))$("btnMengenExport").disabled=!erfolgreich;
     }
   }
 }
@@ -678,10 +904,14 @@ function renderAuftraege(rows){
       <td class="zelle-status"><span class="pill ${r.status==="abgeschlossen"?"pill-geschl":"pill-offen"}">${esc(r.status)}</span></td>
       <td class="zelle-edit">${darfSchreiben()
         ? `<button type="button" class="btn-zeile-edit" title="Auftrag korrigieren">✎</button>`
+        : ""}${darfLoeschen(r)
+        ? ` <button type="button" class="btn-zeile-loeschen" title="Auftrag löschen (nur Admin)">🗑</button>`
         : ""}</td>
     `;
     const btnE = tr.querySelector(".btn-zeile-edit");
     if(btnE) btnE.onclick = () => korrekturOeffnen(r);
+    const btnL = tr.querySelector(".btn-zeile-loeschen");
+    if(btnL) btnL.onclick = () => auftragLoeschen(r, btnL);
     tbody.appendChild(tr);
     // Notiz als eigene Zeile unter dem Auftrag statt als dreizehnte Spalte.
     // Als Spalte stand sie ganz rechts ausserhalb des sichtbaren Bereichs und
@@ -700,6 +930,27 @@ function renderAuftraege(rows){
       tbody.appendChild(trN);
     }
   });
+}
+
+/* ── Auftrag loeschen (nur Admin, vergangene Tage) ──────────────────────
+   Danach neu laden: Kennzahlen, Matrix und Soll-Ist haengen alle am Auftrag. */
+async function auftragLoeschen(r, knopf){
+  const info = `${r.auftragsnr||"—"} · ${displayDate(r.datum)} · ${r.kultur||"ohne Kultur"} · `
+    + `${TMKulturen.topf(r.topfgroesse)||"—"}${r.topfform?" "+r.topfform:""} · `
+    + `${r.gesamtstueck!=null?r.gesamtstueck.toLocaleString("de-DE")+" Stück":"Menge offen"} · ${r.anzahl_ma||0} Mitarbeiterzeilen`;
+  if(!confirm("Auftrag löschen?\n\n" + info + "\n\nAlle Mitarbeiterzeiten des Auftrags werden mit gelöscht, "
+    + "eine Plananrechnung entfällt. Das Löschen wird protokolliert und kann nicht rückgängig gemacht werden.")) return;
+  knopf.disabled = true;
+  try{
+    const resp = await _fetchTimeout("/api/auswertung/auftrag/loeschen",{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({auftrag_id:r.id})});
+    if(!resp.ok){
+      let d=""; try{ d=(await resp.json()).detail; }catch(e){}
+      alert(typeof d==="string"&&d ? d : resp.status===403 ? "Löschen ist dem Admin vorbehalten." : "Löschen fehlgeschlagen.");
+      knopf.disabled = false; return;
+    }
+    loadData();
+  }catch(e){ alert("Löschen fehlgeschlagen – keine Verbindung."); knopf.disabled = false; }
 }
 
 /* ── Korrektur eines Auftrags ──────────────────────────────────────────
@@ -884,7 +1135,7 @@ $("korrOk").onclick = async () => {
 
   btn.disabled = false;
   korrekturSchliessen();
-  await loadData();   // Kennzahlen, Stundenansicht und Tabelle neu rechnen
+  await loadData();   // Kennzahlen, Matrix und Tabelle neu rechnen
 };
 
 function renderKulturAgg(byKultur){
@@ -911,6 +1162,7 @@ const AUFTRAG_FARBEN = [
   "#3f8f7a", "#8c6d1f", "#4a5f9e", "#9c4f7a", "#5c7a34",
 ];
 const OHNE_AUFTRAG_FARBE = "#9a9a92";
+const MAX_AUFTRAG_SPALTEN = 8;
 let _farben = {};
 
 function _farbenSetzen(rows){
@@ -924,49 +1176,28 @@ function _farbenSetzen(rows){
 function _farbe(id){ return _farben[id] || OHNE_AUFTRAG_FARBE; }
 
 function _filterKultur(rows){
-  const kf = $("fKultur").value;
-  if(!kf) return rows;
-  return rows.filter(r => String(r.kultur_id||"") === String(kf));
+  const kf = $("fKultur").value,topf=$("fTopf")?.value,form=$("fForm")?.value;
+  const norm=t=>String(t||"").trim().toLowerCase().replace(/ /g,"").replace("9er","9cm").replace("11er","11cm");
+  if(!kf&&!topf&&!form)return rows;
+  return rows.filter(r=>(!kf||String(r.kultur_id||"")===String(kf))&&(!topf||norm(r.topfgroesse)===norm(topf))&&(!form||r.topfform===form));
 }
 
-
-
-
-
-
-
-
-
-
-
-
-function renderTage(rows){
-  const byDate={};
-  rows.forEach(r => {
-    const d=r.datum||""; if(!d) return;
-    if(!byDate[d]) byDate[d]={stueck:0,mah:0,auftraege:0};
-    byDate[d].auftraege++;
-    byDate[d].stueck+=(r.gesamtstueck||0);
-    byDate[d].mah+=(r.total_mh||0);
-  });
-  const tbody=$("tagesBody"); tbody.innerHTML="";
-  const dates=Object.keys(byDate).sort().reverse();
-  if(!dates.length){ tbody.innerHTML=`<tr><td colspan="5" class="no-data">Keine Daten</td></tr>`; return; }
-  dates.forEach(d => {
-    const v=byDate[d];
-    const leistung=v.mah>0&&v.stueck?v.stueck/v.mah:null;
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${displayDate(d)}</td><td class="num">${v.auftraege}</td><td class="num">${v.stueck.toLocaleString("de-DE")}</td><td class="num">${fmtNum(v.mah)}</td><td class="num">${fmtNum(leistung,0)}</td>`;
-    tbody.appendChild(tr);
-  });
-}
-
+// Loeschknopf in den Auftragszeilen des geoeffneten Tages.
+$("monatsResult").addEventListener("click", ev => {
+  const knopf = ev.target.closest && ev.target.closest("[data-loeschen]");
+  if(!knopf) return;
+  const r = _letzteSummaries.find(a => String(a.id) === knopf.dataset.loeschen);
+  if(r) auftragLoeschen(r, knopf);
+});
 /* CSV-Export */
 $("btnExport").onclick = async () => {
   const von=$("fVon").value, bis=$("fBis").value;
   const kultur_id = $("fKultur").value ? Number($("fKultur").value) : null;
   try {
-    const r=await _fetchTimeout("/api/export.csv",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({von,bis,kultur_id})},30000);
+    const body={von,bis,kultur_id};
+    if($("fTopf")?.value)body.topfgroesse=$("fTopf").value;
+    if($("fForm")?.value)body.topfform=$("fForm").value;
+    const r=await _fetchTimeout("/api/export.csv",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)},30000);
     if(!r.ok){alert("Export fehlgeschlagen");return;}
     const blob=await r.blob();
     const a=document.createElement("a");

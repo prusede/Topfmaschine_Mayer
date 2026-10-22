@@ -67,3 +67,25 @@ test('Plan speichern verlangt sechs gueltige Angaben und erlaubt unveraenderte a
   el.pFrei.value='Sonderkultur';assert.equal(c.gueltig(),true);
   c.canEdit=false;assert.equal(c.gueltig(),false);
 });
+
+test('Eingebettet: Start erst beim Oeffnen, Zeitraum und Kultur aus der Auswertung',async()=>{
+  const calls=[];
+  // Platzhalter fuer alle Formularfelder; planVon fehlt bewusst (= eingebettet).
+  const felder={fVon:{value:'2026-10-01'},fBis:{value:'2026-10-22'},fKultur:{value:'5'},planVon:null};
+  const el=id=>id in felder?felder[id]:(felder[id]={value:'',checked:false,validity:{valid:true},classList:{toggle(){}},addEventListener(){},appendChild(){},replaceChildren(){},reset(){}});
+  const doc={readyState:'complete',cookie:'',addEventListener(){},getElementById:el,querySelectorAll:()=>[],createElement:()=>({})};
+  const fetch=async(url,opts)=>{calls.push({url,body:opts.body&&JSON.parse(opts.body)});
+    if(url==='/api/config')return {ok:true,json:async()=>({kultur_optionen:[],topfgroessen:[],kultur_freitext:23})};
+    if(url.endsWith('/api/session/me'))return {ok:true,json:async()=>({roles:{topfmaschine_mayer:'meister'}})};
+    return {ok:true,json:async()=>[]};};
+  const c=vm.createContext({window:{},TMKulturen:{optionen:()=>[],topf:v=>v},document:doc,fetch,AbortController,setTimeout,clearTimeout,crypto:{randomUUID:()=>'u'},Date});
+  vm.runInContext(source,c);
+  assert.equal(calls.length,0); // ohne planVon kein Selbststart
+  await c.window.TMPlan.planungLaden();
+  const berichte=calls.filter(x=>x.url==='/api/auswertung/planung');
+  assert.equal(berichte.length,1);
+  assert.deepEqual(berichte[0].body,{von:'2026-10-01',bis:'2026-10-22',kultur_id:5});
+  await c.window.TMPlan.planungLaden();
+  assert.equal(calls.filter(x=>x.url==='/api/config').length,1); // nur einmal gestartet
+  assert.equal(calls.filter(x=>x.url==='/api/auswertung/planung').length,2);
+});

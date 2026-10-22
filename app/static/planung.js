@@ -33,9 +33,16 @@ window.TMPlan = (()=>{
     try {render(target, await api('/api/auswertung/planung',{von,bis,kultur_id}));}
     catch(e){target.textContent=e.message;target.classList.add('plan-fehler');}
   }
+  // Seit 22.10.2026 in die Auswertung eingebettet (Ansicht "Produktionsplanung"). Dort gibt
+  // es kein eigenes planVon/planBis: Zeitraum und Kultur kommen aus den Filtern der Auswertung.
+  let ladenAktuell=null;
   async function init(){
     const $=id=>document.getElementById(id);
     if(!$('planForm')) return;
+    const eingebettet=!$('planVon');
+    const filter=()=>eingebettet
+      ? {von:$('fVon').value,bis:$('fBis').value,kultur_id:$('fKultur').value?Number($('fKultur').value):null}
+      : {von:$('planVon').value,bis:$('planBis').value};
     let topfform="",speichert=false;
     let cfg, kulturen, rows=[], current=null, canEdit=false, heute="", draftId=crypto.randomUUID();
     const meldung=(text,fehler=false)=>{$('planMeldung').textContent=text;$('planMeldung').classList.toggle('plan-fehler',fehler);};
@@ -76,7 +83,7 @@ window.TMPlan = (()=>{
     };
     function anzeigen(){render($('planBericht'),rows.filter(p=>$('planArchivZeigen').checked || !p.archiviert),canEdit?edit:null);}
     async function laden(){
-      try {rows=await api('/api/auswertung/planung',{von:$('planVon').value,bis:$('planBis').value});anzeigen();}
+      try {rows=await api('/api/auswertung/planung',filter());anzeigen();}
       catch(e){meldung(e.message,true);}
     }
     try {
@@ -88,8 +95,10 @@ window.TMPlan = (()=>{
       $('planEditor').hidden=!canEdit;
       // Lokales Kalenderdatum statt UTC-Datum beim Tageswechsel.
       const now=new Date();heute=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-      $('planVon').value=heute;$('planBis').value=heute;$('pBeginn').value=heute;
-      $('planLaden').onclick=laden;$('planArchivZeigen').onchange=anzeigen;
+      if(!eingebettet){$('planVon').value=heute;$('planBis').value=heute;$('planLaden').onclick=laden;}
+      $('pBeginn').value=heute;$('planArchivZeigen').onchange=anzeigen;
+      // Abbrechen leert nur das Formular (frueher: zurueck zur Auswertung).
+      if($('planAbbrechen')) $('planAbbrechen').onclick=()=>{reset();meldung('');};
       $('pKultur').oninput=()=>{
         const frei=$('pKultur').value==='Freitext';$('pFreiGruppe').hidden=!frei;$('pFrei').required=frei;freigabe();
       };
@@ -105,9 +114,20 @@ window.TMPlan = (()=>{
         try {await api('/api/planung/save',body);reset();meldung('Produktionsvorgabe gespeichert.');await laden();}
         catch(e){meldung(e.message,true);}finally{speichert=false;freigabe();}
       };
-      await laden();
+      ladenAktuell=laden;
+      // Eigenstaendige Seite laedt sofort; eingebettet laedt planungLaden() nach dem Start.
+      if(!eingebettet) await laden();
     }catch(e){meldung(e.message,true);}
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);else init();
-  return {api,render,loadReport};
+  // Eingebettet erst beim ersten Oeffnen starten: dann steht die Anmeldung fest und
+  // canEdit stimmt (beim Seitenaufbau kann der Anmeldedialog noch offen sein).
+  let gestartet=null;
+  const starten=()=>gestartet || (gestartet=init());
+  async function planungLaden(){
+    await starten();
+    if(ladenAktuell) await ladenAktuell();
+  }
+  const auto=()=>{ if(document.getElementById('planVon')) starten(); };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',auto);else auto();
+  return {api,render,loadReport,planungLaden};
 })();
