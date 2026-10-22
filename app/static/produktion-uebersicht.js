@@ -109,8 +109,20 @@
         }).join("")+(tage.size?'':'<p>Keine Einträge.</p>')+'</div>';
       }catch(e){if(cell.dataset.request===request&&target.contains(cell))cell.innerHTML='<p class="prod-fehler" role="alert">Details konnten nicht geladen werden. Zum erneuten Laden schließen und öffnen.</p>';}
     }
-    target.querySelectorAll("[data-month]").forEach(button=>button.addEventListener("click",()=>oeffnen(button,Number(button.dataset.month))));
-    target.querySelectorAll("[data-culture]").forEach(button=>button.addEventListener("click",()=>oeffnen(button,-1)));
+    // Klick auf Monatswert oder Kulturname: nur noch diese Zeile offen (22.10.2026). Sonst
+    // blieb eine zuvor geoeffnete Kultur hervorgehoben stehen und beide Bloecke flossen
+    // ineinander. Der Monatskopf oeffnet weiterhin bewusst alle Kulturen des Monats.
+    const andereZu=zeile=>{
+      [...target.querySelectorAll("[data-month]"),...target.querySelectorAll("[data-culture]")].forEach(b=>{
+        if(b.dataset.row===zeile||b.getAttribute("aria-expanded")!=="true")return;
+        b.setAttribute("aria-expanded","false");
+        const tr=target.querySelector(`#prod-${id}-${b.dataset.row}`);
+        if(tr){tr.firstElementChild.dataset.request=String(++folge);tr.hidden=true;}
+      });
+      target.querySelectorAll("[data-open-month]").forEach(k=>k.setAttribute("aria-expanded","false"));
+    };
+    target.querySelectorAll("[data-month]").forEach(button=>button.addEventListener("click",()=>{andereZu(button.dataset.row);return oeffnen(button,Number(button.dataset.month));}));
+    target.querySelectorAll("[data-culture]").forEach(button=>button.addEventListener("click",()=>{andereZu(button.dataset.row);return oeffnen(button,-1);}));
     // Schliessen ueber die Ueberschrift: der geoeffnete Knopf der Zeile wird erneut ausgeloest.
     // Der Listener haengt einmal am Container, der beim Neuzeichnen erhalten bleibt; _prodZu
     // zeigt immer auf die aktuelle Zeichnung.
