@@ -125,6 +125,10 @@ tr.missing td{background:#fde8ef;}
    ueber die Matrixzeile, die den ganzen Detailbereich enthaelt: Maus irgendwo im Tag
    und alle Tabellenzellen wurden eingefaerbt. Summenzeile behaelt ihren Hintergrund. */
 .prod-matrix .prod-detail-inhalt td{background:transparent;}
+/* Ebenso die Matrixzeile selbst: beim Darueberfahren hebt die gemeinsame Datei nur das
+   Monatsfeld hervor, nicht die ganze Zeile (wie Halle 1, das "tr:hover td" nicht kennt).
+   Ohne :not(.prod-detail) verloere der geoeffnete Detailbereich beim Darueberfahren seinen Hintergrund. */
+.prod-matrix>tbody>tr:not(.prod-detail):hover>td{background:transparent;}
 .prod-matrix .prod-detail tr.sum-row td{background:var(--paper);}
 /* Ueberschrift "Kultur · Zeitraum" klappt ein: beim Darueberfahren nur unterstrichen,
    nicht hinterlegt (die gemeinsame Datei faerbt sie, hier zurueckgenommen). */
@@ -493,7 +497,7 @@ td.zelle-edit{width:1%;white-space:nowrap;padding-left:4px;padding-right:8px;}
 <script src="/kulturen.js?v=20261016-topfform-1"></script>
 <script src="/kulturauswahl.js?v=20261016-1"></script>
 <script src="/planung.js?v=20261022-mayer-1"></script>
-<script src="/produktion-uebersicht.js?v=20261022-wiehalle1-1"></script>
+<script src="/produktion-uebersicht.js?v=20261022-wiehalle1-2"></script>
 <script src="/produktionsbericht.js?v=20261022-mayer-1"></script>
 <script>
 "use strict";

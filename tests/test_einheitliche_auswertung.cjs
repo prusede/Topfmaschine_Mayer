@@ -70,6 +70,7 @@ test('Detailbereich wie Halle 1: kein eigener Block um Zeile und Detail',()=>{
   assert.ok(!html.includes(':has([aria-expanded=true])')&&!html.includes('100cqw'));
   assert.ok(html.includes('.prod-matrix .prod-detail-zu:hover{background:transparent;'));
   assert.ok(html.includes('.prod-matrix .prod-detail-inhalt td{background:transparent;}'));
+  assert.ok(html.includes('.prod-matrix>tbody>tr:not(.prod-detail):hover>td{background:transparent;}'));
 });
 
 test('Navigation: alle Anwendungen, Produktionsplanung bei der Ansicht statt im Menue',()=>{
