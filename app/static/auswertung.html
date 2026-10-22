@@ -118,54 +118,16 @@ tr.missing td{background:#fde8ef;}
 .prod-detail .auftrag-details summary{display:list-item;list-style:revert;padding:0;font-size:inherit;color:var(--leaf-dark);}
 .prod-detail .auftrag-details details[open]>summary{border-bottom:0;margin-bottom:6px;}
 .prod-detail .auftrag-details summary:hover{background:transparent;text-decoration:underline;}
-/* Geoeffnete Matrixzeile und ihr Detailbereich als ein Block: ein Rahmen um
-   beides, ein Hintergrund. Stolze und Mayer (22.10.2026) -- bewaehrt es sich,
-   gehoert es in produktion-uebersicht.js und gilt dann auch fuer Halle 1.
-   Die fixierte Kulturspalte bekommt den Rahmen als Schatten: Raender an
-   sticky-Zellen wandern bei border-collapse beim seitlichen Scrollen nicht mit. */
-.prod-matrix>tbody>tr:has([aria-expanded=true])>th,
-.prod-matrix>tbody>tr:has([aria-expanded=true])>td{background:#e2eef1;border-top:2px solid #1f6f8a;border-bottom:0;}
-.prod-matrix>tbody>tr:has([aria-expanded=true])>th:first-child{background:#e2eef1;box-shadow:inset 2px 0 0 #1f6f8a;}
-.prod-matrix>tbody>tr:has([aria-expanded=true])>td:last-child{border-right:2px solid #1f6f8a;}
-/* Linker Rahmen in beiden Zeilen vom selben Mechanismus: fixierte Kulturspalte
-   und fixierter Detailinhalt zeichnen ihn jeweils als Schatten. Vorher war er
-   unten ein Zellrand -- der sitzt bei border-collapse halb ausserhalb der Zelle
-   und scrollt mit; die Linie sprang um 1-2 px (22.10.2026). */
-.prod-matrix>tbody>tr:has([aria-expanded=true])+tr.prod-detail>td{border-top:0;border-left:0;padding:0;}
-/* Nicht gewaehlte Monatsfelder der Zeile nur angedeutet; einzige Hervorhebung bleibt das gewaehlte Feld. */
-.prod-matrix>tbody>tr:has([aria-expanded=true]) .prod-monat[aria-expanded=false]{background:#f2f8fa;border-color:#bcd6de;}
-/* Im Block nur ein Gruen: keine weissen Kaesten, keine beigen Koepfe. Struktur
-   entsteht aus feinen Linien und etwas dunkleren Kopfzeilen (22.10.2026, vorerst
-   nur Stolze und Mayer). Selektoren mit .prod-matrix, weil produktion-uebersicht.js ihre
-   Stile spaeter einfuegt und bei gleicher Spezifitaet gewinnen wuerde. */
-/* Breite am sichtbaren Bereich der Matrix statt am Fenster: sonst blieb rechts
-   eine Luecke von ~50 px, je nach Fensterbreite verschieden. Breite = sichtbar
-   minus rechter Rahmen; Innenabstand 10 px links (inkl. 2 px Rahmenschatten) und
-   8 px + 2 px Rahmen rechts, damit der Inhalt mittig im Rahmen sitzt. */
-.prod-scroll{container-type:inline-size;}
-.prod-matrix .prod-detail-inhalt{width:calc(100cqw - 2px);max-width:none;padding:2px 8px 10px 10px;box-shadow:inset 2px 0 0 #1f6f8a;}
-/* Tage als hellgruene Zeilen mit Trennlinie. Der geoeffnete Tag ist an seiner
-   kraeftigeren, fetten Kopfzeile erkennbar (frueher ein Balken nur links -- wirkte schief). */
-.prod-matrix .prod-detail-inhalt>details{margin:0;border:0;border-radius:0;background:transparent;border-bottom:1px solid #bcd6de;}
-.prod-matrix .prod-detail-inhalt>details>summary:hover{background:#cfe2e8;}
-.prod-matrix .prod-detail-inhalt>details[open]>summary{background:#cfe2e8;font-weight:700;border-bottom:0;margin-bottom:0;}
-/* Zahlen der Tageszeile dunkel: grau auf Gruen war zu kontrastarm. */
-.prod-matrix .prod-detail-inhalt>details>summary .tag-wert{color:#21251f;}
-/* Inhalt des geoeffneten Tages (Auftraege) auf einem weissen
-   Feld mit gleichem Abstand links und rechts: Weiss gegen Gruen gibt den
-   Kontrast, Koepfe und Summen im Blockgruen verbinden das Feld mit dem Block. */
-.prod-matrix .prod-detail-inhalt>details>.prod-scroll{background:#fff;border:1px solid #bcd6de;border-radius:8px;margin:8px 10px 12px;}
-.prod-matrix .prod-detail table{background:transparent;}
-.prod-matrix .prod-detail th{background:#e2eef1;border-bottom-color:#bcd6de;}
-.prod-matrix .prod-detail td{border-bottom-color:#dde9ed;}
+/* Detailbereich wie Halle 1 (22.10.2026): Gestaltung allein aus produktion-uebersicht.js --
+   eigener Rahmen unter der Kulturzeile, Tage als weisse Zeilen. Mehrere geoeffnete
+   Kulturen bleiben so klar getrennt. Hier nur zwei Korrekturen: */
 /* Kein Einfaerben beim Darueberfahren. Die allgemeine Regel "tr:hover td" greift sonst
    ueber die Matrixzeile, die den ganzen Detailbereich enthaelt: Maus irgendwo im Tag
-   und alle Tabellenzellen wurden gruen. Deshalb fuer alle Zellen im Detailinhalt fest,
-   nicht nur fuer die ueberfahrene Zeile. Steht vor der Summenregel ("Gesamt" bleibt gruen). */
+   und alle Tabellenzellen wurden eingefaerbt. Summenzeile behaelt ihren Hintergrund. */
 .prod-matrix .prod-detail-inhalt td{background:transparent;}
-.prod-matrix .prod-detail tr.sum-row td{background:#e2eef1;border-top-color:#bcd6de;}
+.prod-matrix .prod-detail tr.sum-row td{background:var(--paper);}
 /* Ueberschrift "Kultur · Zeitraum" klappt ein: beim Darueberfahren nur unterstrichen,
-   nicht gruen hinterlegt (die gemeinsame Datei faerbt sie, hier zurueckgenommen). */
+   nicht hinterlegt (die gemeinsame Datei faerbt sie, hier zurueckgenommen). */
 .prod-matrix .prod-detail-zu:hover{background:transparent;text-decoration:underline;text-underline-offset:4px;}
 /* Legende: eine Zeile, die Erlaeuterung erst auf Klick (wie Halle 1). */
 .legende{margin:10px 12px 4px;font-size:.875rem;color:var(--ink-soft);}
@@ -531,7 +493,7 @@ td.zelle-edit{width:1%;white-space:nowrap;padding-left:4px;padding-right:8px;}
 <script src="/kulturen.js?v=20261016-topfform-1"></script>
 <script src="/kulturauswahl.js?v=20261016-1"></script>
 <script src="/planung.js?v=20261022-mayer-1"></script>
-<script src="/produktion-uebersicht.js?v=20261022-einzeln-1"></script>
+<script src="/produktion-uebersicht.js?v=20261022-wiehalle1-1"></script>
 <script src="/produktionsbericht.js?v=20261022-mayer-1"></script>
 <script>
 "use strict";

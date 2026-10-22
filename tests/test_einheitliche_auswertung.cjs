@@ -66,9 +66,10 @@ test('Loeschknopf auch in der Auftragszeile des geoeffneten Tages',()=>{
   assert.ok(html.includes('ev.target.closest("[data-loeschen]")'));
 });
 
-test('Geoeffnete Matrixzeile und Detail als ein Block (Stolze und Mayer)',()=>{
-  assert.ok(html.includes('.prod-matrix>tbody>tr:has([aria-expanded=true])>th,'));
-  assert.ok(html.includes('.prod-matrix>tbody>tr:has([aria-expanded=true])+tr.prod-detail>td{border-top:0;border-left:0;padding:0;}'));
+test('Detailbereich wie Halle 1: kein eigener Block um Zeile und Detail',()=>{
+  assert.ok(!html.includes(':has([aria-expanded=true])')&&!html.includes('100cqw'));
+  assert.ok(html.includes('.prod-matrix .prod-detail-zu:hover{background:transparent;'));
+  assert.ok(html.includes('.prod-matrix .prod-detail-inhalt td{background:transparent;}'));
 });
 
 test('Navigation: alle Anwendungen, Produktionsplanung bei der Ansicht statt im Menue',()=>{

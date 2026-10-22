@@ -119,19 +119,9 @@ test('Ueberschrift im Detailbereich klappt Monat und Kultur wieder ein',async()=
   // Nichts geoeffnet: kein Fehler, nichts passiert
   assert.equal(target._prodZu('0'),undefined);
 });
-
-test('Klick auf eine andere Kultur schliesst die zuvor geoeffnete Zeile',async()=>{
-  const {buttons,kulturen,kopf,pending,trs}=seite(2);
-  // Zeile 0 ueber den Monatswert, dann Zeile 1 ueber den Monatswert: nur Zeile 1 bleibt offen.
+test('Mehrere Kulturen duerfen gleichzeitig offen sein',async()=>{
+  const {buttons,pending,trs}=seite(2);
   const a=buttons[0].click();pending[0].resolve([]);await a;
-  assert.equal(trs[0].hidden,false);
   const b=buttons[2].click();pending[1].resolve([]);await b;
-  assert.equal(trs[0].hidden,true);assert.equal(buttons[0].getAttribute('aria-expanded'),'false');
-  assert.equal(trs[1].hidden,false);assert.equal(buttons[2].getAttribute('aria-expanded'),'true');
-  // Kulturname schliesst ebenso die andere Zeile
-  const c=kulturen[0].click();pending[2].resolve([]);await c;
-  assert.equal(trs[1].hidden,true);assert.equal(trs[0].hidden,false);
-  // Monatskopf oeffnet weiterhin alle Kulturen des Monats
-  const d=kopf.click();pending.slice(3).forEach(p=>p.resolve([]));await d;
-  assert.ok(trs.every(tr=>!tr.hidden));
+  assert.equal(trs[0].hidden,false);assert.equal(trs[1].hidden,false);
 });
